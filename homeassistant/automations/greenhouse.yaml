@@ -1,0 +1,130 @@
+- id: greenhouse_irrigation_by_humidity
+  alias: "Теплица — полив по влажности"
+  description: "Полив 5 мин если средняя влажность < 55% и светло"
+  mode: single
+  trigger:
+    - platform: time
+      at: "07:00:00"
+  condition:
+    - condition: numeric_state
+      entity_id: sensor.teplitsa_srednyaya_vlazhnost
+      below: 55
+    - condition: numeric_state
+      entity_id: sensor.osveshchennost_potolok
+      above: 500
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.greenhouse_watering_klapan_poliva
+    - delay: "00:05:00"
+    - service: switch.turn_off
+      target:
+        entity_id: switch.greenhouse_watering_klapan_poliva
+
+- id: greenhouse_tank_fill
+  alias: "Теплица — наполнение бака"
+  mode: single
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+      from: "on"
+      to: "off"
+      for: "00:01:00"
+  condition:
+    - condition: state
+      entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+      state: "off"
+  action:
+    - service: switch.turn_on
+      target:
+        entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
+    - wait_for_trigger:
+        - platform: state
+          entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+          to: "on"
+      timeout: "00:10:00"
+    - service: switch.turn_off
+      target:
+        entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
+
+- id: greenhouse_tank_overflow_protection
+  alias: "Теплица — защита переполнения бака"
+  mode: restart
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+      to: "on"
+      for: "00:00:05"
+  action:
+    - service: switch.turn_off
+      target:
+        entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
+    - service: notify.persistent_notification
+      data:
+        title: "Теплица — переполнение бака"
+        message: "Клапан наполнения принудительно закрыт."
+
+- id: greenhouse_ventilation
+  alias: "Теплица — проветривание"
+  mode: single
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.teplitsa_tsentr_temperatura
+      above: 28
+      for: "00:05:00"
+    - platform: numeric_state
+      entity_id: sensor.teplitsa_srednyaya_vlazhnost
+      above: 85
+      for: "00:10:00"
+  condition:
+    - condition: or
+      conditions:
+        - condition: numeric_state
+          entity_id: sensor.teplitsa_tsentr_temperatura
+          above: 28
+        - condition: numeric_state
+          entity_id: sensor.teplitsa_srednyaya_vlazhnost
+          above: 85
+  action:
+    - choose:
+        - conditions:
+            - condition: numeric_state
+              entity_id: sensor.teplitsa_tsentr_temperatura
+              above: 32
+          sequence:
+            - service: cover.set_cover_position
+              target:
+                entity_id: cover.fortochka_1
+              data:
+                position: 100
+            - service: cover.set_cover_position
+              target:
+                entity_id: cover.fortochka_2
+              data:
+                position: 100
+      default:
+        - service: cover.set_cover_position
+          target:
+            entity_id:
+              - cover.fortochka_1
+              - cover.fortochka_2
+          data:
+            position: 40
+
+- id: greenhouse_close_vents_at_night
+  alias: "Теплица — закрыть форточки на ночь"
+  mode: single
+  trigger:
+    - platform: sun
+      event: sunset
+      offset: "00:30:00"
+    - platform: numeric_state
+      entity_id: sensor.osveshchennost_potolok
+      below: 10
+      for: "00:15:00"
+  action:
+    - service: cover.close_cover
+      target:
+        entity_id:
+          - cover.fortochka_1
+          - cover.fortochka_2

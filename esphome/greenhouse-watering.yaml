@@ -1,0 +1,124 @@
+esphome:
+  name: greenhouse-watering
+  friendly_name: "Теплица — полив и бак"
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid_iot
+  password: !secret wifi_password_iot
+  fast_connect: true
+  power_save_mode: none
+  manual_ip:
+    static_ip: 192.168.30.11
+    gateway: 192.168.30.1
+    subnet: 255.255.255.0
+  # После первого подключения раскомментируйте BSSID ближайшей Mesh-точки:
+  # bssid: "XX:XX:XX:XX:XX:XX"
+  ap:
+    ssid: "Greenhouse-Water Fallback"
+    password: !secret ap_fallback_password
+
+captive_portal:
+
+sensor:
+  - platform: wifi_signal
+    name: "Полив — RSSI"
+    id: wifi_rssi
+    update_interval: 60s
+
+  - platform: dallas_temp
+    one_wire_id: bus_onewire
+    name: "Бак — температура воды"
+    id: tank_water_temp
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+
+  - platform: dallas_temp
+    one_wire_id: bus_onewire
+    address: 0x000000000000  # заменить на реальный ROM после первого скана
+    name: "Полив — температура воды"
+    id: irrigation_water_temp
+
+  - platform: pulse_counter
+    pin:
+      number: GPIO13
+      mode: INPUT_PULLUP
+    name: "Полив — расход"
+    id: flow_irrigation
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.00222  # YF-S201: ~450 имп/л → L/min (калибровать!)
+    update_interval: 1s
+
+  - platform: pulse_counter
+    pin:
+      number: GPIO14
+      mode: INPUT_PULLUP
+    name: "Бак — расход наполнения"
+    id: flow_tank_fill
+    unit_of_measurement: "L/min"
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.00222
+    update_interval: 1s
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO16
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Бак — высокий уровень"
+    id: tank_level_high
+    device_class: moisture
+
+switch:
+  - platform: gpio
+    pin: GPIO26
+    name: "Клапан полива"
+    id: valve_irrigation
+    restore_mode: ALWAYS_OFF
+    icon: "mdi:sprinkler"
+
+  - platform: gpio
+    pin: GPIO27
+    name: "Клапан наполнения бака"
+    id: valve_tank_fill
+    restore_mode: ALWAYS_OFF
+    icon: "mdi:water-pump"
+
+one_wire:
+  - platform: gpio
+    pin: GPIO4
+    id: bus_onewire
+
+interval:
+  - interval: 5min
+    then:
+      - if:
+          condition:
+            lambda: 'return id(wifi_rssi).state < -85;'
+          then:
+            - logger.log: "RSSI низкий, перезагрузка Wi-Fi"
+            - wifi.disable:
+            - delay: 5s
+            - wifi.enable:
