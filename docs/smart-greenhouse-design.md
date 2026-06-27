@@ -26,6 +26,8 @@
 |------|--------|-------------------|---------|----------------|
 | Плата HA | Raspberry Pi 4 Model B 4 ГБ | **Raspberry Pi 5 4 ГБ** | Raspberry Pi 5 8 ГБ | `Raspberry Pi 5 4GB купить` — [iArduino](https://www.iarduino.ru/shop/boards/raspberry-pi-5-4gb.html), [robotclass.ru](https://shop.robotclass.ru/) |
 | PoE | PoE HAT для Pi 4 (802.3af) | **Waveshare PoE M.2 HAT+ для Pi 5** (802.3at) | Официальный Raspberry Pi PoE+ HAT | `Waveshare PoE M.2 HAT+ Pi 5` |
+
+![Waveshare PoE M.2 HAT+ — питание Raspberry Pi 5 по Ethernet и слот NVMe 2230](images/components/waveshare-poe-m2-hat-plus.jpg)
 | Накопитель | USB SSD 128 ГБ (Kingston SA400) + переходник USB 3.0 | **NVMe 128 ГБ 2230** (Kingston NV2 / WD SN580) в M.2 HAT | NVMe 256 ГБ + резервная копия на USB | `NVMe 2230 128GB`, `SSD USB 3.0 128GB` |
 | Охлаждение | Пассивный радиатор Pi 4 | **Active Cooler Pi 5** + корпус с вентиляцией шкафа | Корпус Argon NEO 5 + температурный монитор | `Raspberry Pi 5 Active Cooler` |
 | ОС | Home Assistant OS (официальный образ) | Home Assistant OS | HA OS + add-on InfluxDB/Grafana | [home-assistant.io/installation](https://www.home-assistant.io/installation/) |
@@ -68,6 +70,14 @@
 
 *Щит IP65 ★: два ESP32‑WROOM‑32U, Mean Well LRS‑50‑5 / LRS‑100‑12, реле 12 В опто, PCA9685, диоды 1N4007, металлический щит DKC 300×400.*
 
+![Щит IP65 300×400 мм — защита контроллеров и БП у теплицы](images/components/ip65-electrical-enclosure.jpg)
+
+![Блок питания Mean Well LRS — 5 В для логики и 12 В для реле и соленоидов](images/components/mean-well-lrs-power-supply.jpg)
+
+![Модуль реле 12 В с оптронной развязкой — управление NC‑клапанами](images/components/relay-module-12v.jpg)
+
+![PCA9685 — 16‑канальный PWM‑драйвер для сервоприводов форточек](images/components/pca9685-servo-driver.jpg)
+
 | Узел | Бюджет | Сбалансированный ★ | Премиум | Поиск |
 |------|--------|-------------------|---------|-------|
 | ESP32 (2 шт.) | ESP32‑DevKitC на WROOM‑32 (PCB‑антенна) + внешняя антенна с переходником | **ESP32‑DevKitC на ESP32‑WROOM‑32U** (разъём U.FL/IPEX) | ESP32‑WROVER‑E 16 МБ + U.FL | `ESP32 WROOM 32U DevKit U.FL` |
@@ -103,6 +113,12 @@
 
 *Датчики ★: SHT31 ×3, BH1750 ×2, DS18B20 waterproof ×2, поплавок уровня, YF‑S201 ×2.*
 
+![BH1750 — датчик освещённости по шине I²C для автоматизации форточек](images/components/bh1750-light-sensor.jpg)
+
+![DS18B20 waterproof — температурный датчик OneWire для бака и линии полива](images/components/ds18b20-waterproof.jpg)
+
+![YF‑S201 — импульсный расходомер воды 1/2" для учёта полива и наполнения бака](images/components/yf-s201-flow-sensor.png)
+
 | Датчик | Бюджет | Сбалансированный ★ | Премиум | Поиск |
 |--------|--------|-------------------|---------|-------|
 | T/H воздуха ×3 | SHT30 модуль GY‑SHT30 | **SHT31 (GY‑SHT31‑D)** | SHT35 + фильтр PTFE | `SHT31 GY-SHT31 I2C` — [youbot.ru](https://www.youbot.ru/product/tsifrovoy-datchik-temperatury-i-vlazhnosti-gy-sht31d) |
@@ -127,6 +143,8 @@
 ![Соленоидный клапан NC 12 В — перекрытие линии полива при обесточивании](images/components/solenoid-valve-nc.jpg)
 
 *Исполнительные устройства ★: соленоид NC 12 В ×2 (латунь 1/2"), MG996R ×2, реле 2‑кан.*
+
+![MG996R — металлический сервопривод для привода форточек через рычаг](images/components/mg996r-servo.jpg)
 
 | Узел | Бюджет | Сбалансированный ★ | Премиум | Поиск |
 |------|--------|-------------------|---------|-------|
@@ -178,6 +196,8 @@ PCA9685 драйвер сервоприводов
 1. **Разделение питания:** БП 5 В (ESP32, датчики, PCA9685 логика) и БП 12 В (реле, соленоиды) — отдельные Mean Well; общая только «земля» (GND) в одной точке (звезда).
 2. **NC‑клапаны:** без питания на катушке — закрыты. Реле **выключено** → клапан закрыт. При пропадании питания ESP32 реле разомкнуты → вода перекрыта.
 3. **Flyback:** диод **1N4007** параллельно каждой катушке (реле/сolenoid): катод к «+» 12 В, анод к выходу реле.
+
+   ![1N4007 — выпрямительный диод для защиты от обратной ЭДС катушек реле и соленоидов](images/components/1n4007-diode.jpg)
 4. **I2C:** короткие линии в щите; для выноса SHT/BH1750 в теплицу — FTP, SDA/SCL + 5 V + GND, экран на GND в одной точке у ESP32.
 5. **OneWire (DS18B20):** экранированная пара, подтяжка 4.7 кΩ к 3.3 V на ESP32.
 6. **Поплавок:** NO — замыкание на GND при высоком уровне (или NC — инверсия в ESPHome).
