@@ -12,6 +12,9 @@ substitutions:
   flow_multiplier: "0.00222"  # YF-S201 ~450 pulses/L — calibrate on bench
   no_flow_timeout_ms: "15000"
   no_flow_threshold_lmin: "0.05"
+  post_close_settle_ms: "8000"   # delay after valve close before checking flow
+  post_close_check_ms: "5000"    # sustained flow after recent close → fault
+  idle_flow_check_ms: "12000"    # sustained flow when valve idle (boot / long idle) → fault
 
 logger:
   level: INFO
@@ -74,6 +77,30 @@ globals:
     type: bool
     restore_value: no
     initial_value: "false"
+  - id: fill_post_close_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: irrigation_post_close_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: fill_valve_closed_at
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: irrigation_valve_closed_at
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: fill_post_close_high_since
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: irrigation_post_close_high_since
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
 
 sensor:
   - platform: wifi_signal
@@ -183,6 +210,20 @@ binary_sensor:
       return id(fill_no_flow_fault);
 
   - platform: template
+    name: "Полив — поток при закрытом клапане"
+    id: irrigation_post_close_flow
+    device_class: problem
+    lambda: |-
+      return id(irrigation_post_close_fault);
+
+  - platform: template
+    name: "Бак — поток при закрытом клапане"
+    id: fill_post_close_flow
+    device_class: problem
+    lambda: |-
+      return id(fill_post_close_fault);
+
+  - platform: template
     name: "Полив — цель достигнута"
     id: irrigation_target_reached
     lambda: |-
@@ -221,9 +262,13 @@ switch:
           id(irrigation_valve_opened_at) = millis();
           id(irrigation_flow_seen) = false;
           id(irrigation_no_flow_fault) = false;
+          id(irrigation_post_close_fault) = false;
+          id(irrigation_post_close_high_since) = 0;
     on_turn_off:
       - lambda: |-
           id(irrigation_no_flow_fault) = false;
+          id(irrigation_valve_closed_at) = millis();
+          id(irrigation_post_close_high_since) = 0;
 
   - platform: gpio
     pin: GPIO27
@@ -241,9 +286,13 @@ switch:
           id(fill_valve_opened_at) = millis();
           id(fill_flow_seen) = false;
           id(fill_no_flow_fault) = false;
+          id(fill_post_close_fault) = false;
+          id(fill_post_close_high_since) = 0;
     on_turn_off:
       - lambda: |-
           id(fill_no_flow_fault) = false;
+          id(fill_valve_closed_at) = millis();
+          id(fill_post_close_high_since) = 0;
 
 one_wire:
   - platform: gpio
@@ -278,6 +327,67 @@ interval:
                 } else if (!id(fill_flow_seen) &&
                            (millis() - id(fill_valve_opened_at)) >= timeout_ms) {
                   id(fill_no_flow_fault) = true;
+                }
+      - if:
+          condition:
+            switch.is_off: valve_irrigation
+          then:
+            - lambda: |-
+                // Unexpected flow while valve closed: post-close (fast) + idle monitoring (long)
+                const float threshold = atof("${no_flow_threshold_lmin}");
+                const uint32_t settle_ms = atoi("${post_close_settle_ms}");
+                const uint32_t post_close_check_ms = atoi("${post_close_check_ms}");
+                const uint32_t idle_check_ms = atoi("${idle_flow_check_ms}");
+                const uint32_t now = millis();
+                const uint32_t closed_at = id(irrigation_valve_closed_at);
+                if (closed_at != 0 && (now - closed_at) < settle_ms) {
+                  id(irrigation_post_close_high_since) = 0;
+                  return;
+                }
+                if (id(flow_irrigation).has_state() && id(flow_irrigation).state >= threshold) {
+                  if (id(irrigation_post_close_high_since) == 0) {
+                    id(irrigation_post_close_high_since) = now;
+                  }
+                  const uint32_t required_ms =
+                      (closed_at != 0 && (now - closed_at) < (settle_ms + 120000))
+                          ? post_close_check_ms
+                          : idle_check_ms;
+                  if ((now - id(irrigation_post_close_high_since)) >= required_ms) {
+                    id(irrigation_post_close_fault) = true;
+                  }
+                } else {
+                  id(irrigation_post_close_high_since) = 0;
+                  id(irrigation_post_close_fault) = false;
+                }
+      - if:
+          condition:
+            switch.is_off: valve_tank_fill
+          then:
+            - lambda: |-
+                const float threshold = atof("${no_flow_threshold_lmin}");
+                const uint32_t settle_ms = atoi("${post_close_settle_ms}");
+                const uint32_t post_close_check_ms = atoi("${post_close_check_ms}");
+                const uint32_t idle_check_ms = atoi("${idle_flow_check_ms}");
+                const uint32_t now = millis();
+                const uint32_t closed_at = id(fill_valve_closed_at);
+                if (closed_at != 0 && (now - closed_at) < settle_ms) {
+                  id(fill_post_close_high_since) = 0;
+                  return;
+                }
+                if (id(flow_tank_fill).has_state() && id(flow_tank_fill).state >= threshold) {
+                  if (id(fill_post_close_high_since) == 0) {
+                    id(fill_post_close_high_since) = now;
+                  }
+                  const uint32_t required_ms =
+                      (closed_at != 0 && (now - closed_at) < (settle_ms + 120000))
+                          ? post_close_check_ms
+                          : idle_check_ms;
+                  if ((now - id(fill_post_close_high_since)) >= required_ms) {
+                    id(fill_post_close_fault) = true;
+                  }
+                } else {
+                  id(fill_post_close_high_since) = 0;
+                  id(fill_post_close_fault) = false;
                 }
 
   - interval: 5min

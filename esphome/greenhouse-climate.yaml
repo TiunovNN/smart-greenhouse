@@ -8,6 +8,10 @@ esp32:
   framework:
     type: arduino
 
+substitutions:
+  vent_move_timeout_ms: "8000"   # MG996R travel + mechanical slack
+  vent_idle_mismatch_ms: "30000" # sustained limit vs commanded position
+
 logger:
   level: INFO
 
@@ -33,6 +37,48 @@ wifi:
     password: !secret ap_fallback_password
 
 captive_portal:
+
+globals:
+  - id: vent_1_move_started_at
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: vent_1_move_target
+    type: int
+    restore_value: no
+    initial_value: "-1"
+  - id: vent_1_move_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: vent_1_idle_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: vent_1_idle_mismatch_since
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: vent_2_move_started_at
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: vent_2_move_target
+    type: int
+    restore_value: no
+    initial_value: "-1"
+  - id: vent_2_move_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: vent_2_idle_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: vent_2_idle_mismatch_since
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
 
 i2c:
   - id: bus_main
@@ -111,6 +157,54 @@ sensor:
       return (id(hum_center).state + id(hum_north).state + id(hum_south).state) / 3.0;
     update_interval: 30s
 
+binary_sensor:
+  # NC microswitches: contact to GND when window reaches end position
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Форточка 1 — закрыта (концевик)"
+    id: limit_w1_closed
+
+  - platform: gpio
+    pin:
+      number: GPIO5
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Форточка 1 — открыта (концевик)"
+    id: limit_w1_open
+
+  - platform: gpio
+    pin:
+      number: GPIO23
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Форточка 2 — закрыта (концевик)"
+    id: limit_w2_closed
+
+  - platform: gpio
+    pin:
+      number: GPIO25
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Форточка 2 — открыта (концевик)"
+    id: limit_w2_open
+
+  - platform: template
+    name: "Форточка 1 — ошибка положения"
+    id: vent_1_position_fault
+    device_class: problem
+    lambda: |-
+      return id(vent_1_move_fault) || id(vent_1_idle_fault);
+
+  - platform: template
+    name: "Форточка 2 — ошибка положения"
+    id: vent_2_position_fault
+    device_class: problem
+    lambda: |-
+      return id(vent_2_move_fault) || id(vent_2_idle_fault);
+
 pca9685:
   - id: pca9685_hub
     address: 0x40
@@ -174,14 +268,37 @@ cover:
     has_position: true
     optimistic: true
     open_action:
+      - lambda: |-
+          id(vent_1_move_started_at) = millis();
+          id(vent_1_move_target) = 1;
+          id(vent_1_move_fault) = false;
       - number.set:
           id: window_1_angle
           value: 90
     close_action:
+      - lambda: |-
+          id(vent_1_move_started_at) = millis();
+          id(vent_1_move_target) = 0;
+          id(vent_1_move_fault) = false;
       - number.set:
           id: window_1_angle
           value: 0
     set_position_action:
+      - lambda: |-
+          const float angle = x * 90.0f;
+          if (angle <= 5.0f) {
+            id(vent_1_move_started_at) = millis();
+            id(vent_1_move_target) = 0;
+            id(vent_1_move_fault) = false;
+          } else if (angle >= 85.0f) {
+            id(vent_1_move_started_at) = millis();
+            id(vent_1_move_target) = 1;
+            id(vent_1_move_fault) = false;
+          } else {
+            id(vent_1_move_started_at) = 0;
+            id(vent_1_move_target) = -1;
+            id(vent_1_move_fault) = false;
+          }
       - number.set:
           id: window_1_angle
           value: !lambda 'return x * 90;'
@@ -192,19 +309,133 @@ cover:
     has_position: true
     optimistic: true
     open_action:
+      - lambda: |-
+          id(vent_2_move_started_at) = millis();
+          id(vent_2_move_target) = 1;
+          id(vent_2_move_fault) = false;
       - number.set:
           id: window_2_angle
           value: 90
     close_action:
+      - lambda: |-
+          id(vent_2_move_started_at) = millis();
+          id(vent_2_move_target) = 0;
+          id(vent_2_move_fault) = false;
       - number.set:
           id: window_2_angle
           value: 0
     set_position_action:
+      - lambda: |-
+          const float angle = x * 90.0f;
+          if (angle <= 5.0f) {
+            id(vent_2_move_started_at) = millis();
+            id(vent_2_move_target) = 0;
+            id(vent_2_move_fault) = false;
+          } else if (angle >= 85.0f) {
+            id(vent_2_move_started_at) = millis();
+            id(vent_2_move_target) = 1;
+            id(vent_2_move_fault) = false;
+          } else {
+            id(vent_2_move_started_at) = 0;
+            id(vent_2_move_target) = -1;
+            id(vent_2_move_fault) = false;
+          }
       - number.set:
           id: window_2_angle
           value: !lambda 'return x * 90;'
 
 interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t move_timeout_ms = atoi("${vent_move_timeout_ms}");
+          const uint32_t idle_mismatch_ms = atoi("${vent_idle_mismatch_ms}");
+          const uint32_t now = millis();
+
+          // Window 1 — post-move limit check
+          if (id(vent_1_move_started_at) != 0 &&
+              (now - id(vent_1_move_started_at)) >= move_timeout_ms) {
+            const int target = id(vent_1_move_target);
+            bool ok = true;
+            if (target == 0) {
+              ok = id(limit_w1_closed).state;
+            } else if (target == 1) {
+              ok = id(limit_w1_open).state;
+            }
+            if (target == 0 || target == 1) {
+              id(vent_1_move_fault) = !ok;
+            }
+            id(vent_1_move_started_at) = 0;
+            id(vent_1_move_target) = -1;
+          }
+
+          // Window 2 — post-move limit check
+          if (id(vent_2_move_started_at) != 0 &&
+              (now - id(vent_2_move_started_at)) >= move_timeout_ms) {
+            const int target = id(vent_2_move_target);
+            bool ok = true;
+            if (target == 0) {
+              ok = id(limit_w2_closed).state;
+            } else if (target == 1) {
+              ok = id(limit_w2_open).state;
+            }
+            if (target == 0 || target == 1) {
+              id(vent_2_move_fault) = !ok;
+            }
+            id(vent_2_move_started_at) = 0;
+            id(vent_2_move_target) = -1;
+          }
+
+          // Window 1 — idle position vs limit switches
+          if (id(vent_1_move_started_at) == 0) {
+            const float angle = id(window_1_angle).state;
+            bool mismatch = false;
+            if (angle <= 5.0f) {
+              mismatch = !id(limit_w1_closed).state || id(limit_w1_open).state;
+            } else if (angle >= 85.0f) {
+              mismatch = !id(limit_w1_open).state || id(limit_w1_closed).state;
+            } else {
+              id(vent_1_idle_mismatch_since) = 0;
+              id(vent_1_idle_fault) = false;
+              mismatch = false;
+            }
+            if (mismatch) {
+              if (id(vent_1_idle_mismatch_since) == 0) {
+                id(vent_1_idle_mismatch_since) = now;
+              } else if ((now - id(vent_1_idle_mismatch_since)) >= idle_mismatch_ms) {
+                id(vent_1_idle_fault) = true;
+              }
+            } else if (angle <= 5.0f || angle >= 85.0f) {
+              id(vent_1_idle_mismatch_since) = 0;
+              id(vent_1_idle_fault) = false;
+            }
+          }
+
+          // Window 2 — idle position vs limit switches
+          if (id(vent_2_move_started_at) == 0) {
+            const float angle = id(window_2_angle).state;
+            bool mismatch = false;
+            if (angle <= 5.0f) {
+              mismatch = !id(limit_w2_closed).state || id(limit_w2_open).state;
+            } else if (angle >= 85.0f) {
+              mismatch = !id(limit_w2_open).state || id(limit_w2_closed).state;
+            } else {
+              id(vent_2_idle_mismatch_since) = 0;
+              id(vent_2_idle_fault) = false;
+              mismatch = false;
+            }
+            if (mismatch) {
+              if (id(vent_2_idle_mismatch_since) == 0) {
+                id(vent_2_idle_mismatch_since) = now;
+              } else if ((now - id(vent_2_idle_mismatch_since)) >= idle_mismatch_ms) {
+                id(vent_2_idle_fault) = true;
+              }
+            } else if (angle <= 5.0f || angle >= 85.0f) {
+              id(vent_2_idle_mismatch_since) = 0;
+              id(vent_2_idle_fault) = false;
+            }
+          }
+
   - interval: 5min
     then:
       - if:

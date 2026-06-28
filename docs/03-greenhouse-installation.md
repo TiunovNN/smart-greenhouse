@@ -57,8 +57,11 @@
 |--------|--------|-----------|----------|
 | Соленоид NC 12 V 1/2" | 2 | 600–1 200 | 1 800 |
 | MG996R | 2 | 400–550 | 900 |
+| Концевик NC (микропереключатель) | 4 | 50–150 | 400 |
 | Реле 2‑кан (уже в щите) | — | — | — |
-| **Итого актuators** | | | **~2 700** |
+| **Итого актuators** | | | **~3 100** |
+
+**Концевики форточек (×4):** по одному NC‑микропереключателю на каждое крайнее положение каждой форточки (закрыто / открыто). Монтаж — [§2.4](04-esp32-and-cabinet.md#24-подключение-pca9685-и-сервоприводов-mg996r) в [04-esp32-and-cabinet.md](04-esp32-and-cabinet.md). Логика проверки — `esphome/greenhouse-climate.yaml`; уведомление HA — `greenhouse_vent_position_fault_alert`.
 
 ---
 
@@ -126,13 +129,15 @@ ASCII (для печати / быстрой сверки на объекте):
 
 #### 2.6.3. Контроль потока и учёт объёма
 
-Логика реализована в `esphome/greenhouse-watering.yaml` (глобальные параметры `no_flow_timeout_ms: 15000`, `no_flow_threshold_lmin: 0.05`, калибровка `flow_multiplier: 0.00222` для YF‑S201).
+Логика реализована в `esphome/greenhouse-watering.yaml` (глобальные параметры `no_flow_timeout_ms: 15000`, `no_flow_threshold_lmin: 0.05`, `post_close_settle_ms: 8000`, `post_close_check_ms: 5000`, `idle_flow_check_ms: 12000`, калибровка `flow_multiplier: 0.00222` для YF‑S201).
 
 | Событие | Условие (ESPHome) | Действие |
 |---------|-------------------|----------|
-| Старт цикла | Клапан включён | Запомнить `total_liters` на расходомере; обнулить флаг «поток виден» |
+| Старт цикла | Клапан включён | Запомнить `total_liters` на расходомере; обнулить флаг «поток виден»; сбросить аварию «поток при закрытом клапане» |
 | Нормальный поток | Расход ≥ 0,05 л/мин | Флаг «поток виден»; импульсы → накопительный счётчик литров |
 | **Авария «нет потока»** | Клапан открыт **15 с**, расход так и не достиг порога | `binary_sensor` «нет потока» → ON; HA закрывает клапан и шлёт уведомление |
+| **Поток при закрытом клапане** (после закрытия) | Клапан закрыт **8 с** (установка), затем расход ≥ 0,05 л/мин непрерывно **5 с** | Тот же `binary_sensor` «поток при закрытом клапане» → ON |
+| **Поток в простое** (idle) | Клапан линии закрыт (в т.ч. после загрузки ESP), расход ≥ 0,05 л/мин непрерывно **12 с** | Тот же `binary_sensor`; HA шлёт уведомление (утечка, открытый вручную кран, залипший клапан, неисправность датчика). Сброс при возврате расхода к ~0 или при открытии клапана |
 | **Цель полива достигнута** | `объём_за_цикл` ≥ `number` целевой объём | `binary_sensor` «цель достигнута» → ON; автоматизация HA закрывает клапан полива |
 | Наполнение бака | Поплавок ON **или** «нет потока» | Закрыть клапан наполнения ([§4.5](01-overview.md#45-примеры-автоматизаций-home-assistant)) |
 
@@ -147,6 +152,8 @@ ASCII (для печати / быстрой сверки на объекте):
 | Целевой объём | number | `number.greenhouse_watering_poliv_tselevoy_obem` |
 | Нет потока (полив) | binary_sensor | `binary_sensor.greenhouse_watering_poliv_net_potoka` |
 | Нет потока (наполнение) | binary_sensor | `binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya` |
+| Поток при закрытом клапане (полив) | binary_sensor | `binary_sensor.greenhouse_watering_poliv_potok_pri_zakrytom_klapane` |
+| Поток при закрытом клапане (наполнение) | binary_sensor | `binary_sensor.greenhouse_watering_bak_potok_pri_zakrytom_klapane` |
 | Цель полива достигнута | binary_sensor | `binary_sensor.greenhouse_watering_poliv_tsel_dostignuta` |
 | Высокий уровень бака | binary_sensor | `binary_sensor.greenhouse_watering_bak_vysokiy_uroven` |
 | Объём наполнения за цикл | sensor | `sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl` |
@@ -159,6 +166,7 @@ ASCII (для печати / быстрой сверки на объекте):
 | `greenhouse_tank_fill` | Наполнение до поплавка с учётом расхода |
 | `greenhouse_tank_overflow_protection` | Аварийное закрытие при переполнении |
 | `greenhouse_watering_no_flow_alert` | Закрытие клапана и уведомление при «нет потока» |
+| `greenhouse_watering_post_close_flow_alert` | Уведомление при неожиданном потоке на закрытой линии (после закрытия или в простое) |
 
 Helper для дашборда: `input_number.greenhouse_irrigation_volume` (`homeassistant/input_number.yaml`).
 

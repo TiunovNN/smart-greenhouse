@@ -1,9 +1,19 @@
 # Entity IDs follow ESPHome friendly names (Russian → slug).
+# Climate vent limit switches (after flash — verify in Settings → Devices):
+#   binary_sensor.greenhouse_climate_fortochka_1_zakryta_kontsevik
+#   binary_sensor.greenhouse_climate_fortochka_1_otkryta_kontsevik
+#   binary_sensor.greenhouse_climate_fortochka_2_zakryta_kontsevik
+#   binary_sensor.greenhouse_climate_fortochka_2_otkryta_kontsevik
+#   binary_sensor.greenhouse_climate_fortochka_1_oshibka_polozheniya
+#   binary_sensor.greenhouse_climate_fortochka_2_oshibka_polozheniya
+#
 # New watering entities (after flash):
 #   sensor.greenhouse_watering_poliv_obem_za_tsikl
 #   sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl
 #   binary_sensor.greenhouse_watering_poliv_net_potoka
 #   binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
+#   binary_sensor.greenhouse_watering_poliv_potok_pri_zakrytom_klapane
+#   binary_sensor.greenhouse_watering_bak_potok_pri_zakrytom_klapane
 #   binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
 #   number.greenhouse_watering_poliv_tselevoy_obem
 #
@@ -189,6 +199,47 @@
               target:
                 entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
 
+- id: greenhouse_watering_post_close_flow_alert
+  alias: "Теплица — поток при закрытом клапане"
+  description: >-
+    Уведомление при неожиданном потоке на закрытой линии: после закрытия клапана,
+    в простое (оба клапана закрыты) или при утечке/открытом вручную кране
+  mode: parallel
+  max: 2
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.greenhouse_watering_poliv_potok_pri_zakrytom_klapane
+      to: "on"
+      id: irrigation_post_close
+    - trigger: state
+      entity_id: binary_sensor.greenhouse_watering_bak_potok_pri_zakrytom_klapane
+      to: "on"
+      id: fill_post_close
+  actions:
+    - choose:
+        - conditions:
+            - condition: trigger
+              id: irrigation_post_close
+          sequence:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — поток при закрытом клапане полива"
+                message: >-
+                  Клапан полива закрыт, но расходомер показывает поток
+                  ({{ states('sensor.greenhouse_watering_poliv_rashod') | float(0) | round(2) }} л/мин).
+                  Возможны утечка, открытый вручную кран, залипший клапан или неисправность датчика.
+        - conditions:
+            - condition: trigger
+              id: fill_post_close
+          sequence:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — поток при закрытом клапане наполнения"
+                message: >-
+                  Клапан наполнения закрыт, но расходомер показывает поток
+                  ({{ states('sensor.greenhouse_watering_bak_rashod_napolneniya') | float(0) | round(2) }} л/мин).
+                  Возможны утечка, открытый вручную кран, залипший клапан или неисправность датчика.
+
 - id: greenhouse_ventilation
   alias: "Теплица — проветривание"
   mode: single
@@ -257,3 +308,48 @@
         entity_id:
           - cover.fortochka_1
           - cover.fortochka_2
+
+- id: greenhouse_vent_position_fault_alert
+  alias: "Теплица — ошибка положения форточки"
+  description: >-
+    Уведомление если концевик не подтвердил движение или положение не совпадает
+    с командой (заклинило, сорван привод, неисправен концевик)
+  mode: parallel
+  max: 2
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.greenhouse_climate_fortochka_1_oshibka_polozheniya
+      to: "on"
+      id: vent_1_fault
+    - trigger: state
+      entity_id: binary_sensor.greenhouse_climate_fortochka_2_oshibka_polozheniya
+      to: "on"
+      id: vent_2_fault
+  actions:
+    - choose:
+        - conditions:
+            - condition: trigger
+              id: vent_1_fault
+          sequence:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — форточка 1: ошибка положения"
+                message: >-
+                  Концевики не подтверждают положение окна
+                  (закрыта: {{ states('binary_sensor.greenhouse_climate_fortochka_1_zakryta_kontsevik') }},
+                  открыта: {{ states('binary_sensor.greenhouse_climate_fortochka_1_otkryta_kontsevik') }},
+                  угол: {{ states('number.okno_1_ugol') | float(0) | round(0) }}°).
+                  Проверьте привод, механику и монтаж концевиков.
+        - conditions:
+            - condition: trigger
+              id: vent_2_fault
+          sequence:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — форточка 2: ошибка положения"
+                message: >-
+                  Концевики не подтверждают положение окна
+                  (закрыта: {{ states('binary_sensor.greenhouse_climate_fortochka_2_zakryta_kontsevik') }},
+                  открыта: {{ states('binary_sensor.greenhouse_climate_fortochka_2_otkryta_kontsevik') }},
+                  угол: {{ states('number.okno_2_ugol') | float(0) | round(0) }}°).
+                  Проверьте привод, механику и монтаж концевиков.

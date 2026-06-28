@@ -112,6 +112,7 @@ flowchart TB
 
   E2 -->|"GPIO21 SDA · GPIO22 SCL"| BUS1
   E2 -->|"GPIO18 SDA · GPIO19 SCL"| BUS2
+  E2 -->|"GPIO4/5/23/25 INPUT_PULLUP"| LIM["Концевики ×4<br/>NC → GND"]
   E2 -->|"3.3 V"| PCA
   E2 -.->|"U.FL"| ANT2["Антенна 2.4 GHz"]
 
@@ -137,8 +138,14 @@ flowchart TB
 | GPIO22 | I2C SCL | Шина 1 | — |
 | GPIO18 | I2C SDA | Шина 2: SHT31 #3, BH1750 #2 | — |
 | GPIO19 | I2C SCL | Шина 2 | — |
+| GPIO4 | Цифровой вход | Концевик «Форточка 1 — закрыта» → GND | `INPUT_PULLUP`, NC, `inverted: true` |
+| GPIO5 | Цифровой вход | Концевик «Форточка 1 — открыта» → GND | |
+| GPIO23 | Цифровой вход | Концевик «Форточка 2 — закрыта» → GND | |
+| GPIO25 | Цифровой вход | Концевик «Форточка 2 — открыта» → GND | |
 | — | PCA9685 V+ | Отдельные 5 V 3 A на сервоприводы | Не от USB ESP32 |
 | U.FL | Wi‑Fi | Внешняя антенна | |
+
+**Не использовать на ESP32 №2:** GPIO6–11 (flash). GPIO34–39 — только вход без внутренней подтяжки (для концевиков не использовать).
 
 **I2C‑устройства на шине 1 (GPIO21/22):**
 
@@ -196,6 +203,58 @@ flowchart LR
 - При двух MG996R под нагрузкой обязателен **отдельный БП 5 V ≥ 3 A** на клемму V+ PCA9685.
 - Механика: серво → рычаг → форточка; установить **концевые упоры** и калибровать угол в HA (0° = закрыто, 90° = приоткрыто).
 
+#### Концевики (контроль положения форточек)
+
+На каждую форточку — **два NC‑микропереключателя** (закрыто / открыто). При обрыве провода или отключении ESP32 NC‑контакт разомкнут → `binary_sensor` OFF (безопаснее, чем ложное «закрыто»).
+
+```mermaid
+flowchart LR
+  subgraph esp2_lim["ESP32 №2 · greenhouse-climate"]
+    E2L["GPIO4 · GPIO5 · GPIO23 · GPIO25"]
+  end
+
+  subgraph w1["Форточка 1"]
+    S1C["Концевик закрыто<br/>NC → GPIO4 · GND"]
+    S1O["Концевик открыто<br/>NC → GPIO5 · GND"]
+  end
+
+  subgraph w2["Форточка 2"]
+    S2C["Концевик закрыто<br/>NC → GPIO23 · GND"]
+    S2O["Концевик открыто<br/>NC → GPIO25 · GND"]
+  end
+
+  E2L --> S1C
+  E2L --> S1O
+  E2L --> S2C
+  E2L --> S2O
+```
+
+ASCII (монтаж на объекте):
+
+```
+Форточка 1:  [GPIO4]─── NC концевик «закрыто» ─── GND
+             [GPIO5]─── NC концевик «открыто»  ─── GND
+Форточка 2:  [GPIO23]── NC концевик «закрыто» ─── GND
+             [GPIO25]── NC концевик «открыто»  ─── GND
+```
+
+| GPIO | ID (ESPHome) | Friendly name |
+|------|--------------|---------------|
+| GPIO4 | `limit_w1_closed` | Форточка 1 — закрыта (концевик) |
+| GPIO5 | `limit_w1_open` | Форточка 1 — открыта (концевик) |
+| GPIO23 | `limit_w2_closed` | Форточка 2 — закрыта (концевик) |
+| GPIO25 | `limit_w2_open` | Форточка 2 — открыта (концевик) |
+
+**Монтаж:** крепить концевик так, чтобы рычаг форточки **нажимал** переключатель только в крайнем положении. Проводка — в FTP‑кабеле вместе с питанием серво (отдельная пара на каждый концевик: сигнал + GND). Подтяжка — `INPUT_PULLUP` в ESPHome, `inverted: true` (как поплавок бака на ESP32 №1).
+
+**Логика** (`esphome/greenhouse-climate.yaml`, параметры `vent_move_timeout_ms: 8000`, `vent_idle_mismatch_ms: 30000`):
+
+| Событие | Условие | Действие |
+|---------|---------|----------|
+| Команда OPEN/CLOSE / position 0 или 100 % | Серво отработало, прошло 8 с | Ожидаемый концевик должен быть ON; иначе `binary_sensor` «ошибка положения» |
+| Промежуточное положение (например 40 %) | Угол 5–85° | Концевики не проверяются |
+| Простой | Угол ≤ 5° или ≥ 85°, несовпадение с концевиками 30 с | «ошибка положения» → ON; HA шлёт уведомление |
+
 ---
 
 ### 2.5. Схема «откуда → куда» (щит IP65)
@@ -250,6 +309,7 @@ flowchart LR
 
   E2 -->|"I2C1 GPIO21/22"| FTP_I2C1["FTP → SHT31×2 + BH1750"]
   E2 -->|"I2C2 GPIO18/19"| FTP_I2C2["FTP → SHT31 + BH1750"]
+  E2 -->|"GPIO4/5/23/25"| FTP_LIM["FTP → концевики ×4"]
   PCA -->|"5V БП V+"| WIN["MG996R ×2 → форточки"]
 
   E1 -.->|"U.FL · PG7"| ANT["Антенны наружу щита"]
@@ -655,7 +715,7 @@ ap_fallback_password: "резервный-ap"
 | Устройство | Сущности (entity_id*) |
 |------------|----------------------|
 | greenhouse-watering | `sensor.greenhouse_watering_bak_temperatura_vody`, `sensor.greenhouse_watering_poliv_rashod`, `binary_sensor.greenhouse_watering_bak_vysokiy_uroven`, `switch.greenhouse_watering_klapan_poliva`, `switch.greenhouse_watering_klapan_napolneniya_baka`, `sensor.greenhouse_watering_poliv_rssi` |
-| greenhouse-climate | `sensor.teplitsa_tsentr_temperatura`, `sensor.teplitsa_srednyaya_vlazhnost`, `sensor.osveshchennost_potolok`, `cover.fortochka_1`, `cover.fortochka_2`, `number.okno_1_ugol` |
+| greenhouse-climate | `sensor.teplitsa_tsentr_temperatura`, `sensor.teplitsa_srednyaya_vlazhnost`, `sensor.osveshchennost_potolok`, `cover.fortochka_1`, `cover.fortochka_2`, `number.okno_1_ugol`, `binary_sensor.greenhouse_climate_fortochka_1_zakryta_kontsevik`, `binary_sensor.greenhouse_climate_fortochka_1_oshibka_polozheniya`, … |
 
 \* Точные `entity_id` зависят от версии HA; переименуйте в **Настройки → Устройства → Сущность → Имя**.
 
