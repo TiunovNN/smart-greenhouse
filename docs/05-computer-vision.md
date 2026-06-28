@@ -10,13 +10,13 @@
 
 | Решение | Выбор |
 |---------|--------|
-| Edge‑хост CV | **SBC в щите IP65 снаружи у входа** (Radxa ZERO 3W ★) — RTSP‑захват, опциональный локальный inference; **не** внутри теплицы (RH 70–95 %) |
-| Облако CV | **Только РФ** — [Yandex AI Studio](https://aistudio.yandex.ru/) / Yandex Cloud Foundation Models (мультимодальный YandexGPT) |
-| Хранение снимков | **Yandex Cloud Object Storage** (S3‑совместимый, `ru-central1`); кэш на edge SBC — 7–14 дней |
+| Edge‑хост CV | **SBC в щите IP65 снаружи у входа** (Radxa ZERO 3W ★) — RTSP‑захват, опциональный локальный ONNX pre-filter, **передача снимков на Pi**; **без WAN**; **не** внутри теплицы (RH 70–95 %) |
+| Облако CV | **Только РФ** — [Yandex AI Studio](https://aistudio.yandex.ru/) / Yandex Cloud Foundation Models (мультимодальный YandexGPT); **только с Raspberry Pi 5 / HA** |
+| Хранение снимков | **Yandex Cloud Object Storage** (S3‑совместимый, `ru-central1`); upload с **Pi**; локальный кэш на edge SBC — 7–14 дней |
 | Планировка грядок | **П‑образная от входа** (коридор + два плеча) — см. [03 §1.4.2](03-greenhouse-installation.md#142-п-образная-планировка-грядок-и-камеры-cv) |
 | Алерты | Уведомления **и** связка с проветриванием / поливом (шаблонные условия по RH + класс CV) |
 | Освещение съёмки | По **фотопериоду** и BH1750 (`sensor.osveshchennost_potolok`); без фиксированной LED‑вспышки в 18:00 |
-| Связь edge ↔ HA | **MQTT** (предпочтительно) или REST API → Home Assistant на **Raspberry Pi 5** (домашний шкаф) |
+| Связь edge ↔ HA | **Локальная сеть:** edge → Pi (SCP / HTTP POST / MQTT с метаданными); Pi → edge (MQTT trigger capture, HA REST для lux) |
 
 Связанные разделы: триангуляция климата — [03 §1.4.1](03-greenhouse-installation.md#141-размещение-sht31--3-триангуляция-климата); профили культур — [01-overview.md §4.6](01-overview.md#46-профили-культур-огурцы--помидоры); сеть IoT VLAN — [01-overview.md §3](01-overview.md#3-настройка-wi-fi-и-mesh).
 
@@ -28,7 +28,7 @@ CV привязан к **сезону щита** ([03 §0.1](03-greenhouse-insta
 
 | Компонент | Зима | Примечание |
 |-----------|------|------------|
-| **Edge SBC (Radxa ZERO 3W)** | **Со щитом** — питание off, хранение в сухом помещении | Без edge нет RTSP‑захвата и upload в Object Storage |
+| **Edge SBC (Radxa ZERO 3W)** | **Со щитом** — питание off, хранение в сухом помещении | Без edge нет RTSP‑захвата и локальной передачи снимков на Pi |
 | **PoE камеры внутри теплицы** | **На выбор владельца** | **A)** оставить на месте, **PoE off** на коммутаторе (объектив под плёнкой/чехлом — опц.); **B)** снять, хранить в сухом месте, Cat6 — заглушка на вводе |
 | **Cat6 PoE** | Остаётся в теплице | При снятых камерах — защитить разъёмы; при оставленных — без питания зимой |
 
@@ -56,7 +56,7 @@ CV привязан к **сезону щита** ([03 §0.1](03-greenhouse-insta
 flowchart TB
   subgraph outdoor["Снаружи у входа"]
     subgraph cabinet["Щит IP65 · 192.168.30.11–13"]
-      EDGE["Edge SBC · greenhouse-cv-edge<br/>Python · OpenCV · ONNX"]
+      EDGE["Edge SBC · greenhouse-cv-edge<br/>RTSP · OpenCV · ONNX pre-filter<br/>local-only · no WAN"]
       ESP["ESP32 ×2 · полив + климат"]
     end
   end
@@ -69,7 +69,7 @@ flowchart TB
 
   subgraph home["Дом · сетевой шкаф"]
     POE["Keenetic PoE‑коммутатор"]
-    PI["Raspberry Pi 5 · Home Assistant OS"]
+    PI["Raspberry Pi 5 · Home Assistant OS<br/>CV orchestration · S3 · YandexGPT"]
     MQTT["MQTT broker · HA add-on"]
   end
 
@@ -81,18 +81,16 @@ flowchart TB
   CAM1 -->|"Cat6 через стенку"| POE
   CAM2 --> POE
   LUX --> ESP
-  EDGE -->|"Wi‑Fi 2.4 · IoT-GH"| PI
   EDGE -->|"RTSP snapshot<br/>ffmpeg / OpenCV"| CAM1
   EDGE -->|"RTSP snapshot"| CAM2
-  PI -->|"07:00 / sunset−45m<br/>MQTT trigger или REST"| EDGE
-  EDGE -->|"GET lux · REST HA API"| PI
+  PI -->|"07:00 / sunset−45m<br/>MQTT greenhouse/cv/capture"| EDGE
+  EDGE -->|"GET lux · REST HA API (LAN)"| PI
   EDGE -->|"Phase 2b · ONNX pre-filter<br/>MobileNet / ViT INT8"| EDGE
-  EDGE -->|"S3 PUT · boto3"| S3
-  EDGE -->|"если uncertain / Phase 2a<br/>vision completion"| FM
-  FM -->|"JSON"| EDGE
-  EDGE -->|"MQTT publish<br/>health / report JSON"| MQTT
-  MQTT --> PI
-  PI -->|"notify + vent/irrigation hints"| HAUI["HA Dashboard / Telegram"]
+  EDGE -->|"JPEG + metadata<br/>SCP / HTTP / MQTT"| PI
+  PI -->|"S3 PUT · aws cli / boto3"| S3
+  PI -->|"Foundation Models<br/>vision completion"| FM
+  FM -->|"JSON"| PI
+  PI -->|"input_text / template sensors<br/>vent · irrigation automations"| HAUI["HA Dashboard / Telegram"]
   S3 -.->|"objectStorage ref (опц.)"| FM
 ```
 
@@ -100,17 +98,18 @@ flowchart TB
 
 | Узел | Роль | Не делает |
 |------|------|-----------|
-| **Edge SBC** (`.13`) | RTSP‑захват 2×/сутки; lux‑gate через HA API; upload S3; Phase 2b — локальный HF/ONNX; publish MQTT | Не заменяет HA; не хранит секреты в git |
-| **Raspberry Pi 5** (HA) | Оркестрация расписания, automations, vent/irrigation, Lovelace, Telegram | Не тянет RTSP с камер напрямую (камеры в теплице, Pi в шкафу; edge SBC — в щите **снаружи**) |
-| **Yandex Cloud** | Primary storage + тяжёлый multimodal analysis при `uncertain` или Phase 2a | Не непрерывный inference 24/7 |
+| **Edge SBC** (`.13`) | RTSP‑захват 2×/сутки; lux‑gate через HA REST API (LAN); опциональный ONNX pre-filter; **локальная передача** JPEG + метаданных на Pi; publish MQTT «ready» / pre-filter hints | **Нет WAN**; **нет** Yandex credentials; **не** upload в S3; **не** вызов Foundation Models |
+| **Raspberry Pi 5** (HA) | Оркестрация расписания; приём снимков в `/config/greenhouse_cv/inbox/`; **upload Object Storage**; **YandexGPT** multimodal; парсинг JSON → HA entities; vent/irrigation coupling; Lovelace, Telegram | Не тянет RTSP с камер напрямую (камеры в теплице, Pi в шкафу; edge SBC — в щите **снаружи**) |
+| **Yandex Cloud** | Primary storage + тяжёлый multimodal analysis (Phase 2a+) | Доступ **только** с Pi (HTTPS); не непрерывный inference 24/7 |
 
 **Поток данных:**
 
-1. HA в **07:00** и **sunset − 45 min** публикует триггер (`greenhouse/cv/capture`) или вызывает REST edge‑сервиса.
-2. Edge SBC читает `sensor.osveshchennost_potolok` через **HA REST API**; при lux ≥ порога (§4.1) — RTSP snapshot с CV‑1 и CV‑2.
-3. **Phase 2a:** JPEG → **Yandex Object Storage** → **Foundation Models API** (мультимодальный prompt с профилем культуры).
-4. **Phase 2b (опционально):** перед облаком — локальный **ONNX Runtime** (MobileNetV2 INT8, ~4 MB); при confidence > 0.85 и класс «healthy» — skip cloud; иначе — upload + YandexGPT.
-5. Результат → **MQTT** → HA helpers; при болезни + высокой RH — проветривание; при водном стрессе — подсказка полива (§7.4).
+1. HA на **Pi** в **07:00** и **sunset − 45 min** публикует MQTT `greenhouse/cv/capture` (или REST edge‑сервиса).
+2. Edge SBC читает `sensor.osveshchennost_potolok` через **HA REST API** (локально); при lux ≥ порога (§4.1) — RTSP snapshot с CV‑1 и CV‑2.
+3. **Phase 2b (опционально):** локальный **ONNX Runtime** на edge; при confidence > 0.85 и класс «healthy» — метка `prefilter_healthy` в метаданных (Pi может skip cloud).
+4. Edge **передаёт JPEG** на Pi: SCP → `/config/greenhouse_cv/inbox/`, HTTP POST на локальный endpoint, или MQTT + отдельный SCP/rsync. **Yandex credentials не хранятся на Radxa.**
+5. **Pi / HA:** `scripts/capture_and_analyze.sh` — S3 PUT + Foundation Models API (мультимодальный prompt с профилем культуры) → JSON в `input_text.greenhouse_cv_last_report`.
+6. Automations на Pi: notify; при болезни + высокой RH — проветривание; при водном стрессе — подсказка полива (§7.4).
 
 ---
 
@@ -226,23 +225,37 @@ flowchart TB
 | Debian / Armbian (официальный образ Radxa) | Базовая ОС |
 | Python 3.11+ · OpenCV · ffmpeg | RTSP → JPEG |
 | **ONNX Runtime** (`CPUExecutionProvider`) | Phase 2b — локальные HF‑модели |
-| `paho-mqtt` или HA REST | Результаты → Pi 5 |
-| `boto3` | Upload Yandex Object Storage |
-| systemd timer или cron | Fallback расписания 07:00 / sunset−45m |
+| `paho-mqtt` | MQTT: subscribe `greenhouse/cv/capture`, publish `greenhouse/cv/ready` |
+| `rsync` / `scp` / `curl` (HTTP POST) | Передача JPEG на Pi → `/config/greenhouse_cv/inbox/` |
+| systemd timer или cron | Fallback расписания 07:00 / sunset−45m (если MQTT недоступен) |
 
-Кэш снимков: `/var/lib/greenhouse_cv/` (7–14 дней, rotate).
+**Не устанавливать на edge:** `boto3`, Yandex Cloud SDK, ключи Object Storage / Foundation Models.
+
+Кэш снимков: `/var/lib/greenhouse_cv/` (7–14 дней, rotate). Референс edge‑скрипт (не в repo): `edge_capture.sh` — RTSP → JPEG → post to Pi.
 
 ### 3.5. Сеть и IP
 
 | Параметр | Значение |
 |----------|----------|
 | VLAN | `IoT_Greenhouse` · 192.168.30.0/24 |
-| Edge SBC | **`192.168.30.13`** · `greenhouse-cv-edge` |
-| Камеры | `192.168.30.21` (CV‑1), `192.168.30.22` (CV‑2) |
-| ESP32 | `.11` полив, `.12` климат |
+| Edge SBC | **`192.168.30.13`** · `greenhouse-cv-edge` · **local-only, no WAN** |
+| Raspberry Pi 5 (HA) | домашний шкаф · PoE · **единственный IoT‑хост с HTTPS в Yandex Cloud** |
+| Камеры | `192.168.30.21` (CV‑1), `192.168.30.22` (CV‑2) · **no WAN** |
+| ESP32 | `.11` полив, `.12` климат · **no WAN** |
 | Питание камер | Keenetic PoE‑коммутатор (802.3af), ~4–7 W на камеру |
-| Firewall | IoT **без** прямого WAN; edge ↔ HA (MQTT 1883 / REST 8123), edge ↔ cameras (RTSP 554) |
-| Исходящий HTTPS с edge | → `storage.yandexcloud.net`, `llm.api.cloud.yandex.net` (Phase 2a+) |
+
+**Firewall (Keenetic, IoT_Greenhouse):**
+
+| Правило | Назначение |
+|---------|------------|
+| **DENY** IoT → Internet (по умолчанию) | ESP32, камеры, Radxa `.13` — без прямого WAN |
+| **ALLOW** edge `.13` → cameras `.21/.22` TCP **554** (RTSP) | Захват снимков |
+| **ALLOW** edge `.13` → Pi TCP **8123** (HA REST), **1883** (MQTT), **22** (SCP, опц.) | Lux‑gate, trigger, доставка JPEG |
+| **ALLOW** Pi → edge `.13` TCP **1883**, REST (если edge слушает) | MQTT capture trigger |
+| **ALLOW** Pi → Internet HTTPS **`storage.yandexcloud.net`**, **`llm.api.cloud.yandex.net`**, **`iam.api.cloud.yandex.net`** | S3 upload + Foundation Models (Phase 2a+) |
+| **DENY** edge `.13` → Yandex Cloud | Radxa не обращается в облако |
+
+NTP для IoT — опционально точечное разрешение или синхронизация через LAN.
 
 ---
 
@@ -259,7 +272,7 @@ flowchart TB
 
 | Условие | Lux | Действие |
 |---------|-----|----------|
-| Достаточно для CV | ≥ **300** (утро), ≥ **150** (вечер, sunset−45m) | Snapshot → upload → API |
+| Достаточно для CV | ≥ **300** (утро), ≥ **150** (вечер, sunset−45m) | Snapshot → edge → Pi inbox → upload + API (Phase 2a) |
 | Погранично | 150–299 (утро) | Snapshot локально; облако — только если нет blur (Phase 2+) |
 | Темно | < **150** | **Skip** cloud; метка `skipped_dark`; см. §4.1.3 |
 | Полив (сравнение) | > 500 | Используется в `greenhouse_irrigation_by_humidity` — CV утром может снимать при 300+ |
@@ -276,16 +289,16 @@ flowchart TB
 
 Пример automations: `homeassistant/automations/greenhouse_cv.yaml.example`.
 
-### 4.2. Компоненты: edge SBC + HA
+### 4.2. Компоненты: edge SBC + Pi / HA
 
 | Компонент | Роль |
 |-----------|------|
-| Edge service `greenhouse-cv-edge` | RTSP capture, lux gate, S3 upload, ONNX (Phase 2b), MQTT publish |
-| HA automation `greenhouse_cv_capture_*` | Утро 07:00 / вечер sunset−45m → MQTT/REST trigger edge |
-| HA REST / MQTT sensor | Lux read для edge (или edge polls HA) |
-| `input_text.greenhouse_cv_last_report` | JSON последнего отчёта (из MQTT) |
+| Edge service `greenhouse-cv-edge` (`edge_capture.sh`, ref.) | RTSP capture, lux gate, optional ONNX pre-filter, **local post to Pi inbox** |
+| HA automation `greenhouse_cv_capture_*` | Утро 07:00 / вечер sunset−45m → MQTT trigger edge |
+| HA automation `greenhouse_cv_run_analysis` | Inbox ready → `shell_command` → `capture_and_analyze.sh` на **Pi** |
+| `input_text.greenhouse_cv_last_report` | JSON последнего отчёта (после Pi‑side analyze) |
 | Template `sensor.greenhouse_cv_health` | `healthy` / `stressed` / `diseased` / `uncertain` / `skipped_dark` |
-| `scripts/capture_and_analyze.sh` | **Переносится на edge** (референс; stub в repo для Pi — deprecated) |
+| `scripts/capture_and_analyze.sh` | **На Pi:** S3 upload + YandexGPT API; вход — JPEG уже в `/config/greenhouse_cv/inbox/` |
 
 ### 4.3. Метаданные
 
@@ -321,9 +334,9 @@ flowchart TB
 | ACL | Private; доступ сервисному аккаунту FM + HA static key |
 | Lifecycle | Standard → Cold через 90 дней (сезон); удаление через 365 дней (настраивается) |
 
-**Локальный каталог** на edge SBC `/var/lib/greenhouse_cv/` — кэш 7–14 дней; HA может показывать последние снимки через MQTT‑attached URL или signed S3 URL.
+**Локальный каталог на Pi:** `/config/greenhouse_cv/inbox/` — вход от edge; `/config/greenhouse_cv/` — после analyze. HA Lovelace — последние снимки из inbox или signed S3 URL.
 
-**Аутентификация:** static access key сервисного аккаунта с ролью `storage.editor`; ключи в `/etc/greenhouse_cv/secrets.env` на edge (не в git).
+**Аутентификация:** static access key сервисного аккаунта с ролью `storage.editor`; ключи в **`homeassistant/secrets.yaml`** на Pi (не в git, **не на Radxa**).
 
 ### 5.2. Yandex AI Studio / Foundation Models (vision)
 
@@ -460,13 +473,14 @@ flowchart TB
 **Deploy pipeline (Phase 2b):**
 
 ```bash
-# On edge SBC — example with pre-exported ONNX
-pip install onnxruntime opencv-python-headless paho-mqtt boto3
+# On edge SBC — example with pre-exported ONNX (no cloud SDK)
+pip install onnxruntime opencv-python-headless paho-mqtt
 python -c "
 import onnxruntime as ort
 sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionProvider'])
 # input: NCHW 1x3x224x224, ImageNet normalize
 "
+# Post JPEG to Pi: scp snapshot.jpg pi@192.168.1.x:/config/greenhouse_cv/inbox/
 ```
 
 Модели без ONNX в репозитории: export через `optimum` / `tf2onnx` / `torch.onnx.export` на dev‑машине; quantize INT8 на Radxa или x86.
@@ -529,32 +543,32 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 
 | Требование | Реализация |
 |------------|------------|
-| **152‑ФЗ** | Primary storage и inference в Yandex Cloud РФ |
+| **152‑ФЗ** | Primary storage и inference в Yandex Cloud РФ; upload **с Pi** |
 | **Минимизация** | Crop грядок; bucket private; lifecycle delete |
-| **Секреты** | `yandex_cloud_api_key`, `yandex_s3_access_key` в `secrets.yaml` |
+| **Секреты** | `yandex_cloud_api_key`, `yandex_s3_access_key` в **`homeassistant/secrets.yaml` на Pi**; **не на edge SBC** |
 | **FOV** | Камеры не видят участок за пределами теплицы |
 
 ---
 
 ## 10. Поэтапное внедрение
 
-### Phase 1 — Capture + edge + Yandex Storage (1–2 недели)
+### Phase 1 — Capture + edge → Pi (1–2 недели)
 
 - [ ] 2× PoE камер, монтаж П‑layout, IP .21/.22
-- [ ] **Radxa ZERO 3W** в щите **снаружи у входа**, IP `.13`, Wi‑Fi IoT-GH
-- [ ] Edge service: RTSP snapshot утро / sunset−45m с lux‑gate (HA API)
-- [ ] Upload в Object Storage; MQTT → HA; Lovelace «последние снимки»
+- [ ] **Radxa ZERO 3W** в щите **снаружи у входа**, IP `.13`, Wi‑Fi IoT-GH, **firewall: no WAN**
+- [ ] Edge service: RTSP snapshot утро / sunset−45m с lux‑gate (HA REST API)
+- [ ] Локальная передача JPEG на Pi `/config/greenhouse_cv/inbox/`; Lovelace «последние снимки»
 
-### Phase 2a — YandexGPT analysis (2–4 недели)
+### Phase 2a — YandexGPT analysis на Pi (2–4 недели)
 
-- [ ] `capture_and_analyze.sh` на **edge** + service account
-- [ ] Template sensors + notify на HA (MQTT ingest)
+- [ ] `capture_and_analyze.sh` на **Pi** + service account в HA secrets
+- [ ] Template sensors + notify на HA после analyze
 - [ ] Журнал false positives
 
-### Phase 2b — Local HF pre-filter (опционально)
+### Phase 2b — Local ONNX pre-filter на edge (опционально)
 
 - [ ] ONNX MobileNetV2 / DrUkachi INT8 на edge
-- [ ] Skip cloud если healthy + confidence > 0.85
+- [ ] Метка `prefilter_healthy` в metadata → Pi может skip cloud
 - [ ] Profile-aware class filter (`input_select.greenhouse_plant_profile`)
 
 ### Phase 3 — Profile alerts + actuators (сезон)
@@ -593,8 +607,9 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 
 | Файл | Назначение |
 |------|------------|
-| `homeassistant/automations/greenhouse_cv.yaml.example` | Capture, lux/photoperiod, vent/irrigation coupling |
-| `scripts/capture_and_analyze.sh` | S3 upload + YandexGPT API stub |
+| `homeassistant/automations/greenhouse_cv.yaml.example` | Pi orchestration: MQTT trigger, inbox, analyze, vent/irrigation coupling |
+| `scripts/capture_and_analyze.sh` | **Pi-side:** S3 upload + YandexGPT API (input from inbox) |
+| `edge_capture.sh` (ref., deploy on Radxa) | RTSP capture + local post to Pi — см. §3.4.3 |
 | `docs/03-greenhouse-installation.md` | П‑layout, позиции камер |
 
 ---
@@ -608,7 +623,7 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 | FM async | `POST .../foundationModels/v1/completionAsync` (дешевле 50 % async) |
 | IAM token | `POST https://iam.api.cloud.yandex.net/iam/v1/tokens` |
 
-**Env vars (скрипт):** `YC_FOLDER_ID`, `YC_API_KEY`, `YC_S3_BUCKET`, `YC_S3_ACCESS_KEY`, `YC_S3_SECRET_KEY`, `YC_S3_ENDPOINT` (default `https://storage.yandexcloud.net`).
+**Env vars (скрипт на Pi):** `YC_FOLDER_ID`, `YC_API_KEY`, `YC_S3_BUCKET`, `YC_S3_ACCESS_KEY`, `YC_S3_SECRET_KEY`, `YC_S3_ENDPOINT` (default `https://storage.yandexcloud.net`). Задавать через `shell_command` / HA secrets — **не на Radxa**.
 
 ---
 

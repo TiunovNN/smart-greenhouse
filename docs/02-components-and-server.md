@@ -65,12 +65,14 @@
 |----|----------|------------|----------|
 | 192.168.30.11 | `greenhouse-watering` | ESP32 №1 — полив, бак | [04 §2.2](04-esp32-and-cabinet.md) |
 | 192.168.30.12 | `greenhouse-climate` | ESP32 №2 — климат, форточки | [04 §2.3](04-esp32-and-cabinet.md) |
-| **192.168.30.13** | **`greenhouse-cv-edge`** | **Edge SBC (Radxa ZERO 3W) — CV capture/inference; щит снаружи у входа** | [05 §3.4–3.5](05-computer-vision.md) |
+| **192.168.30.13** | **`greenhouse-cv-edge`** | **Edge SBC (Radxa ZERO 3W) — локальный RTSP‑захват, опц. ONNX pre-filter, передача на Pi; без WAN и без Yandex credentials** | [05 §3.4–3.5](05-computer-vision.md) |
 | 192.168.30.21 | `greenhouse-cv-entrance` | PoE IP камера CV‑1 | [05 §3.1](05-computer-vision.md) |
 | 192.168.30.22 | `greenhouse-cv-far` | PoE IP камера CV‑2 | [05 §3.1](05-computer-vision.md) |
 | 192.168.30.100–200 | — | DHCP pool (прочие IoT) | [01 §3](01-overview.md) |
 
-PoE камеры **внутри** теплицы подключены к **Keenetic PoE‑коммутатору** в домашнем шкафу (**Cat6** через стенку/раму у входа); edge SBC в щите **снаружи** получает RTSP по Wi‑Fi в том же VLAN. ESP32 и полевые линии — **FTP** из щита в теплицу ([03 §0](03-greenhouse-installation.md#0-щит-снаружи-датчики-и-камеры-внутри)). **Зимой** хосты `.11–.13` offline (щит в хранении); камеры `.21–.22` — по выбору ([05 §0.1.4](05-computer-vision.md#014-сезонная-эксплуатация-cv)).
+PoE камеры **внутри** теплицы подключены к **Keenetic PoE‑коммутатору** в домашнем шкафу (**Cat6** через стенку/раму у входа); edge SBC в щите **снаружи** получает RTSP по Wi‑Fi в том же VLAN и **передаёт JPEG на Pi** (не в Yandex Cloud). **Yandex Object Storage и Foundation Models** — только с **Raspberry Pi 5 / HA** ([05 §2](05-computer-vision.md#2-архитектура)). ESP32 и полевые линии — **FTP** из щита в теплицу ([03 §0](03-greenhouse-installation.md#0-щит-снаружи-датчики-и-камеры-внутри)). **Зимой** хосты `.11–.13` offline (щит в хранении); камеры `.21–.22` — по выбору ([05 §0.1.4](05-computer-vision.md#014-сезонная-эксплуатация-cv)).
+
+**Базовый BOM (~52 000 ₽)** — сервер Pi, щит ESP32, датчики, клапаны; **без** PoE камер и Radxa. **Опционально CV** (~22 550 ₽ доп.) — см. [05 §11](05-computer-vision.md#11-bom-дополнение). **Опционально надёжность щита** — Gore vent, силика‑гель, mini UPS 12 V ([04 §1.3](04-esp32-and-cabinet.md)).
 
 ---
 

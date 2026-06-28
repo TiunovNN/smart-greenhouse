@@ -437,7 +437,7 @@ BOM = [
         3790,
         "RUB",
         "https://onpad.ru/catalog/cubie/radxa/rock/radxa_zero_series/3542.html",
-        "greenhouse-cv-edge · .13 · RTSP + ONNX; doc. 05 §3.4 / 04 §1.4; не ESP32",
+        "greenhouse-cv-edge · .13 · RTSP + ONNX pre-filter · local post to Pi; no WAN; doc. 05 §3.4 / 04 §1.4",
         4200,
         "onpad.ru",
     ),

@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Greenhouse CV: upload snapshots to Yandex Object Storage, analyze via Yandex AI Studio
-# (Foundation Models multimodal completion). Phase 2 stub — wire credentials via env;
-# do not commit API keys.
+# Greenhouse CV — Pi-side script (Raspberry Pi 5 / Home Assistant).
+# Input: JPEG snapshots already delivered from Radxa edge SBC to local inbox.
+# Action: upload to Yandex Object Storage + call Yandex AI Studio (Foundation Models).
 #
-# Required env:
+# Do NOT deploy this script or Yandex credentials on Radxa (.13). Edge is local-only;
+# see docs/05-computer-vision.md and edge_capture.sh (reference on Radxa).
+#
+# Required env (from HA shell_command / secrets — Pi only):
 #   YC_FOLDER_ID          — Yandex Cloud folder ID
 #   YC_API_KEY            — API key (service account) OR YC_IAM_TOKEN
 #   YC_S3_BUCKET          — Object Storage bucket name
@@ -15,17 +18,17 @@
 #   YC_S3_PREFIX          — default greenhouse-cv
 #   YC_FM_MODEL           — default yandexgpt/latest  (URI: gpt://${YC_FOLDER_ID}/yandexgpt/latest)
 #   GREENHOUSE_PLANT_PROFILE — default Огурцы
-#   CV_DIR                — default /config/greenhouse_cv
+#   CV_DIR                — default /config/greenhouse_cv/inbox (edge delivery directory)
 #
 # Usage:
-#   ./scripts/capture_and_analyze.sh [/config/greenhouse_cv]
+#   ./scripts/capture_and_analyze.sh [/config/greenhouse_cv/inbox]
 #
-# Dependencies: curl, jq, python3 (boto3 optional) OR aws cli configured for Yandex S3
+# Dependencies: curl, jq, aws cli (recommended for Yandex S3) — on Pi only
 # Exit 0 on success; prints merged JSON to stdout for HA input_text.greenhouse_cv_last_report
 
 set -euo pipefail
 
-CV_DIR="${1:-${CV_DIR:-/config/greenhouse_cv}}"
+CV_DIR="${1:-${CV_DIR:-/config/greenhouse_cv/inbox}}"
 YC_S3_ENDPOINT="${YC_S3_ENDPOINT:-https://storage.yandexcloud.net}"
 YC_S3_PREFIX="${YC_S3_PREFIX:-greenhouse-cv}"
 YC_FM_URL="${YC_FM_URL:-https://llm.api.cloud.yandex.net/foundationModels/v1/completion}"

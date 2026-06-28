@@ -1,0 +1,11 @@
+# Include in configuration.yaml:
+#   input_boolean: !include input_boolean.yaml
+#
+# Entity ID: input_boolean.greenhouse_season_active
+# Turn on when the outdoor IP65 cabinet is mounted and powered (~May–Sep).
+# Turn off after demount (~Oct–Apr) to skip actuator automations while ESP32 is stored.
+
+greenhouse_season_active:
+  name: "Теплица — сезон активен"
+  icon: mdi:greenhouse
+  initial: false

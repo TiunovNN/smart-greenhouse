@@ -1,80 +1,83 @@
 # Example only — NOT included in configuration.yaml by default.
-# Copy patterns into greenhouse.yaml or rename after cameras are paired.
+# Copy patterns into greenhouse.yaml or rename after CV hardware is deployed.
+#
+# Architecture: Radxa edge SBC captures RTSP locally (no WAN, no Yandex credentials).
+# Edge posts JPEG + metadata to Pi inbox; Pi / HA runs cloud upload + YandexGPT analysis.
 #
 # Requires:
-#   camera.greenhouse_cv_entrance, camera.greenhouse_cv_far (Reolink/RTSP)
+#   input_boolean.greenhouse_season_active (on during growing season)
 #   sensor.osveshchennost_potolok (BH1750 ceiling — greenhouse-climate)
 #   sensor.teplitsa_srednyaya_vlazhnost, cover.fortochka_1, cover.fortochka_2
 # Helpers: input_text.greenhouse_cv_last_report, input_datetime.greenhouse_cv_last_success
 # Template sensor: sensor.greenhouse_cv_health (parse input_text JSON)
 #
-# Secrets (secrets.yaml): yandex_cloud_api_key, yandex_s3_access_key, yandex_s3_secret_key
-# shell_command.greenhouse_cv_analyze_latest → scripts/capture_and_analyze.sh
+# Pi inbox: /config/greenhouse_cv/inbox/ — edge delivers via SCP, HTTP POST, or rsync.
+# MQTT topics (edge subscribes/publishes on LAN):
+#   greenhouse/cv/capture  — HA → edge: start capture session
+#   greenhouse/cv/ready    — edge → HA: JPEG delivered to inbox (payload: session, paths)
+#
+# Pi secrets (homeassistant/secrets.yaml): yandex_cloud_api_key, yandex_s3_access_key, yandex_s3_secret_key
+# shell_command.greenhouse_cv_analyze_latest → scripts/capture_and_analyze.sh (runs on Pi only)
+#
+# Edge reference (deploy on Radxa, not in repo): edge_capture.sh
+#   - subscribe MQTT greenhouse/cv/capture
+#   - read lux via HA REST API
+#   - RTSP snapshot from 192.168.30.21 / .22
+#   - optional ONNX pre-filter locally
+#   - scp/rsync JPEG to pi:/config/greenhouse_cv/inbox/
+#   - publish greenhouse/cv/ready
 
-- id: greenhouse_cv_capture_morning
-  alias: "Теплица CV — утренний снимок 07:00"
+- id: greenhouse_cv_trigger_capture_morning
+  alias: "Теплица CV — триггер захвата утром 07:00"
   description: >-
-    Snapshot обеих камер при достаточной освещённости (BH1750 потолок).
-    Загрузка в Yandex Object Storage — через shell_command после capture.
+    Pi публикует MQTT для edge SBC; Radxa снимает RTSP и доставляет JPEG в inbox на Pi.
+    Yandex upload/analyze — отдельная automation после greenhouse/cv/ready.
   mode: single
   triggers:
     - trigger: time
       at: "07:00:00"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       above: 300
     - condition: template
       value_template: "{{ state_attr('sun.sun', 'elevation') | float(-90) > 5 }}"
   actions:
-    - variables:
-        stamp: "{{ now().strftime('%Y-%m-%d_%H%M') }}"
-        session: am
-    - action: camera.snapshot
-      target:
-        entity_id:
-          - camera.greenhouse_cv_entrance
-          - camera.greenhouse_cv_far
+    - action: mqtt.publish
       data:
-        filename: "/config/greenhouse_cv/{{ stamp }}_{{ session }}_{{ entity_id | replace('camera.', '') }}.jpg"
-    - action: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.greenhouse_cv_last_success
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        topic: greenhouse/cv/capture
+        payload: >-
+          {"session":"am","lux":{{ states('sensor.osveshchennost_potolok') | float(0) }},
+          "plant_profile":"{{ states('input_select.greenhouse_plant_profile') }}"}
 
-- id: greenhouse_cv_capture_evening
-  alias: "Теплица CV — вечерний снимок (sunset − 45 min)"
+- id: greenhouse_cv_trigger_capture_evening
+  alias: "Теплица CV — триггер захвата вечером (sunset − 45 min)"
   description: >-
-    Время съёмки привязано к фотопериоду, не к фиксированным 18:00.
-    Порог lux ниже утреннего — сумерки, но до заката.
+    Время съёмки привязано к фотопериоду. Edge доставляет снимки на Pi; облако — только с Pi.
   mode: single
   triggers:
     - trigger: sun
       event: sunset
       offset: "-00:45:00"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       above: 150
     - condition: template
       value_template: "{{ state_attr('sun.sun', 'elevation') | float(-90) > 0 }}"
   actions:
-    - variables:
-        stamp: "{{ now().strftime('%Y-%m-%d_%H%M') }}"
-        session: pm
-    - action: camera.snapshot
-      target:
-        entity_id:
-          - camera.greenhouse_cv_entrance
-          - camera.greenhouse_cv_far
+    - action: mqtt.publish
       data:
-        filename: "/config/greenhouse_cv/{{ stamp }}_{{ session }}_{{ entity_id | replace('camera.', '') }}.jpg"
-    - action: input_datetime.set_datetime
-      target:
-        entity_id: input_datetime.greenhouse_cv_last_success
-      data:
-        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+        topic: greenhouse/cv/capture
+        payload: >-
+          {"session":"pm","lux":{{ states('sensor.osveshchennost_potolok') | float(0) }},
+          "plant_profile":"{{ states('input_select.greenhouse_plant_profile') }}"}
 
 - id: greenhouse_cv_skip_dark_morning
   alias: "Теплица CV — пропуск утра (мало света)"
@@ -83,6 +86,9 @@
     - trigger: time
       at: "07:00:05"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       below: 300
@@ -94,7 +100,7 @@
         value: >-
           {"health":"skipped_dark","session":"am","lux":{{ states('sensor.osveshchennost_potolok') | float(0) }},
           "sun_elevation":{{ state_attr('sun.sun', 'elevation') | float(0) }},
-          "note":"lux below morning threshold; no Yandex upload"}
+          "note":"lux below morning threshold; edge capture skipped"}
 
 - id: greenhouse_cv_skip_dark_evening
   alias: "Теплица CV — пропуск вечера (мало света)"
@@ -104,6 +110,9 @@
       event: sunset
       offset: "-00:44:00"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       below: 150
@@ -115,31 +124,42 @@
         value: >-
           {"health":"skipped_dark","session":"pm","lux":{{ states('sensor.osveshchennost_potolok') | float(0) }},
           "sun_elevation":{{ state_attr('sun.sun', 'elevation') | float(0) }},
-          "note":"lux below evening threshold; no Yandex upload"}
+          "note":"lux below evening threshold; edge capture skipped"}
 
 - id: greenhouse_cv_run_analysis
-  alias: "Теплица CV — upload S3 + YandexGPT (stub)"
+  alias: "Теплица CV — Pi: S3 upload + YandexGPT"
   description: >-
-    Вызывает scripts/capture_and_analyze.sh: Object Storage PUT + Foundation Models API.
-    Enable after Yandex Cloud service account is configured.
+    Запускается после доставки снимков edge → /config/greenhouse_cv/inbox/.
+    scripts/capture_and_analyze.sh выполняется на Raspberry Pi (не на Radxa).
+    Yandex credentials — только в HA secrets на Pi.
   mode: single
   triggers:
+    - trigger: mqtt
+      topic: greenhouse/cv/ready
     - trigger: time
       at: "07:08:00"
     - trigger: sun
       event: sunset
       offset: "-00:37:00"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: template
       value_template: >-
-        {{ states('input_text.greenhouse_cv_last_report') != '' and
+        {{ states('input_text.greenhouse_cv_last_report') == '' or
            'skipped_dark' not in states('input_text.greenhouse_cv_last_report') }}
   actions:
     - action: shell_command.greenhouse_cv_analyze_latest
       continue_on_error: true
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.greenhouse_cv_last_success
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
     - action: notify.persistent_notification
       data:
-        title: "Теплица CV — анализ завершён"
+        title: "Теплица CV — анализ завершён (Pi)"
         message: "{{ states('input_text.greenhouse_cv_last_report')[:500] }}"
 
 - id: greenhouse_cv_alert_diseased
@@ -150,6 +170,9 @@
       entity_id: sensor.greenhouse_cv_health
       to: "diseased"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: template
       value_template: >-
         {{ states('input_text.greenhouse_cv_last_report') | from_json(default={}).get('max_confidence', 0) | float(0) > 0.75 }}
@@ -175,6 +198,9 @@
       entity_id: sensor.greenhouse_cv_health
       to: "stressed"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: template
       value_template: >-
         {% set report = states('input_text.greenhouse_cv_last_report') | from_json(default={}) %}
@@ -214,6 +240,9 @@
       entity_id: sensor.greenhouse_cv_health
       to: "stressed"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: template
       value_template: >-
         {% set report = states('input_text.greenhouse_cv_last_report') | from_json(default={}) %}

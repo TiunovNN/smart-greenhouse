@@ -8,7 +8,7 @@
 | 2 | [02-components-and-server.md](02-components-and-server.md) | Подбор компонентов (BOM), сервер HA, сеть Mesh, сводная стоимость |
 | 3 | [03-greenhouse-installation.md](03-greenhouse-installation.md) | Датчики, исполнительные устройства, гидравлическая схема полива и бака |
 | 4 | [04-esp32-and-cabinet.md](04-esp32-and-cabinet.md) | Щит IP65, GPIO, ESPHome, прошивка, сущности HA |
-| 5 | [05-computer-vision.md](05-computer-vision.md) | Камеры **внутри** (П‑layout), **edge SBC в щите снаружи**, Yandex Object Storage + AI Studio, HF ONNX, MQTT → HA |
+| 5 | [05-computer-vision.md](05-computer-vision.md) | Камеры **внутри** (П‑layout), **edge SBC local-only**, Pi → Yandex Object Storage + AI Studio, ONNX pre-filter, MQTT → HA |
 
 ## Быстрая навигация по разделам (бывшая нумерация)
 

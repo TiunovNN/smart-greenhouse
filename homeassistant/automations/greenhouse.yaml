@@ -3,7 +3,8 @@
 # Seasonal operation (central Russia): IP65 cabinet mounted and powered ~May–Sep only.
 # Winter (~Oct–Apr): cabinet removed/stored indoors; ESP32 offline → entities unavailable;
 # automations below do not actuate hardware until remount. Manual taps/valves on site if needed.
-# Optional: add input_boolean.greenhouse_season_active + condition: state "on" on each automation.
+# Season gate: input_boolean.greenhouse_season_active (input_boolean.yaml) — include in configuration.yaml.
+# Turn on when cabinet is mounted (~May–Sep); off in winter so automations skip unavailable ESP32 entities.
 # See docs/03-greenhouse-installation.md §0.1, docs/01-overview.md §5.4.
 #
 # Climate triangulation (after flash — verify in Settings → Devices):
@@ -34,7 +35,8 @@
 #   binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
 #   number.greenhouse_watering_poliv_tselevoy_obem
 #
-# Helpers: input_select.greenhouse_plant_profile, input_number.* (input_select.yaml, input_number.yaml)
+# Helpers: input_boolean.greenhouse_season_active, input_select.greenhouse_plant_profile, input_number.*
+# (input_boolean.yaml, input_select.yaml, input_number.yaml)
 # Profile defaults: homeassistant/plant_profiles.yaml — applied by greenhouse_apply_plant_profile
 # Prefer number.greenhouse_watering_poliv_tselevoy_obem on device; input_number is a dashboard fallback.
 # Irrigation uses avg air RH (SHT31) as relative soil-moisture proxy — GH baseline 70–95%, not room air.
@@ -133,6 +135,9 @@
     - trigger: time
       at: "07:00:00"
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: template
       value_template: >-
         {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(100) <
@@ -203,6 +208,9 @@
       for: "00:01:00"
   conditions:
     - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
+    - condition: state
       entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
       state: "off"
   actions:
@@ -257,6 +265,10 @@
       entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
       to: "on"
       for: "00:00:05"
+  conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
   actions:
     - action: switch.turn_off
       target:
@@ -280,6 +292,10 @@
       entity_id: binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
       to: "on"
       id: fill_no_flow
+  conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
   actions:
     - choose:
         - conditions:
@@ -321,6 +337,10 @@
       entity_id: binary_sensor.greenhouse_watering_bak_potok_pri_zakrytom_klapane
       to: "on"
       id: fill_post_close
+  conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
   actions:
     - choose:
         - conditions:
@@ -366,6 +386,9 @@
       for: "00:10:00"
       id: high_humidity
   conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
     - condition: or
       conditions:
         - condition: template
@@ -416,6 +439,10 @@
       below: 10
       for: "00:15:00"
       id: low_lux
+  conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
   actions:
     - action: cover.close_cover
       target:
@@ -439,6 +466,10 @@
       entity_id: binary_sensor.greenhouse_climate_fortochka_2_oshibka_polozheniya
       to: "on"
       id: vent_2_fault
+  conditions:
+    - condition: state
+      entity_id: input_boolean.greenhouse_season_active
+      state: "on"
   actions:
     - choose:
         - conditions:

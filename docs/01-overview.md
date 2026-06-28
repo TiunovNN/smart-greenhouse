@@ -94,158 +94,43 @@
 
 ### 4.5. Примеры автоматизаций Home Assistant
 
-Добавить в `configuration.yaml` или через **Настройки → Автоматизации → Создать → Редактировать в YAML**.
-
-**1. Полив по влажности и времени (утро)**
+Канонические automations с синтаксисом HA 2024.8+ — в `homeassistant/automations/greenhouse.yaml`. Ниже — сокращённый пример полива:
 
 ```yaml
 alias: "Теплица — полив по влажности"
-description: "Полив до целевого объёма если средняя RH ниже input_number.greenhouse_irrigation_humidity_min и светло"
+description: "Полив до целевого объёма если средняя RH ниже уставки профиля и светло"
 mode: single
-trigger:
-  - platform: time
+triggers:
+  - trigger: time
     at: "07:00:00"
-condition:
+conditions:
+  - condition: state
+    entity_id: input_boolean.greenhouse_season_active
+    state: "on"
   - condition: template
-    value_template: >
+    value_template: >-
       {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(100) <
          states('input_number.greenhouse_irrigation_humidity_min') | float(68) }}
   - condition: numeric_state
     entity_id: sensor.osveshchennost_potolok
     above: 500
-action:
-  - service: switch.turn_on
+actions:
+  - action: switch.turn_on
     target:
       entity_id: switch.greenhouse_watering_klapan_poliva
   - delay: "00:05:00"
-  - service: switch.turn_off
+  - action: switch.turn_off
     target:
       entity_id: switch.greenhouse_watering_klapan_poliva
 ```
 
-**2. Наполнение бака по уровню**
+Подключение helpers в `configuration.yaml`:
 
 ```yaml
-alias: "Теплица — наполнение бака"
-mode: single
-trigger:
-  - platform: state
-    entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
-    from: "on"
-    to: "off"
-    for: "00:01:00"
-condition:
-  - condition: state
-    entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
-    state: "off"
-action:
-  - service: switch.turn_on
-    target:
-      entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
-  - wait_for_trigger:
-      - platform: state
-        entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
-        to: "on"
-    timeout: "00:10:00"
-  - service: switch.turn_off
-    target:
-      entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
-```
-
-**3. Защита от переполнения (аварийное отключение)**
-
-```yaml
-alias: "Теплица — защита переполнения бака"
-mode: restart
-trigger:
-  - platform: state
-    entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
-    to: "on"
-    for: "00:00:05"
-action:
-  - service: switch.turn_off
-    target:
-      entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
-  - service: notify.persistent_notification
-    data:
-      title: "Теплица — переполнение бака"
-      message: "Клапан наполнения принудительно закрыт."
-```
-
-**4. Проветривание по температуре и влажности (триангуляция)**
-
-Стратегия: **max T** по трём зонам SHT31 — перегрев в любой точке открывает форточки; **средняя RH** — проветривание при **верхней** зоне влажности (застой, конденсат на листьях). В теплице RH **70–95 %** — норма; пороги `greenhouse_vent_humidity_max` (82 % / 70 %) не означают «низкую влажность». Полное открытие при max T > уставки профиля.
-
-```yaml
-alias: "Теплица — проветривание"
-description: "max T > уставки профиля или средняя RH > greenhouse_vent_humidity_max; полное открытие при max T > vent_temp_full"
-mode: single
-trigger:
-  - platform: numeric_state
-    entity_id: sensor.teplitsa_max_temperatura
-    above: 26
-    for: "00:05:00"
-  - platform: template
-    value_template: >
-      {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(0) >
-         states('input_number.greenhouse_vent_humidity_max') | float(82) }}
-    for: "00:10:00"
-condition:
-  - condition: or
-    conditions:
-      - condition: numeric_state
-        entity_id: sensor.teplitsa_max_temperatura
-        above: 26
-      - condition: template
-        value_template: >
-          {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(0) >
-             states('input_number.greenhouse_vent_humidity_max') | float(82) }}
-action:
-  - choose:
-      - conditions:
-          - condition: numeric_state
-            entity_id: sensor.teplitsa_max_temperatura
-            above: 30
-        sequence:
-          - service: cover.set_cover_position
-            target:
-              entity_id: cover.fortochka_1
-            data:
-              position: 100
-          - service: cover.set_cover_position
-            target:
-              entity_id: cover.fortochka_2
-            data:
-              position: 100
-    default:
-      - service: cover.set_cover_position
-        target:
-          entity_id:
-            - cover.fortochka_1
-            - cover.fortochka_2
-        data:
-          position: 40
-```
-
-**5. Закрытие окон на ночь и при дожде (низкая освещённость + высокая влажность)**
-
-```yaml
-alias: "Теплица — закрыть форточки на ночь"
-mode: single
-trigger:
-  - platform: sun
-    event: sunset
-    offset: "00:30:00"
-  - platform: numeric_state
-    entity_id: sensor.osveshchennost_potolok
-    below: 10
-    for: "00:15:00"
-action:
-  - service: cover.close_cover
-    target:
-      entity_id:
-        - cover.fortochka_1
-        - cover.fortochka_2
+input_boolean: !include input_boolean.yaml
+input_select: !include input_select.yaml
+input_number: !include input_number.yaml
+automation: !include_dir_merge_list automations/
 ```
 
 ### 4.6. Профили культур (огурцы / помидоры)
@@ -282,15 +167,7 @@ action:
 | **Август** | Базовые | Базовые RH; после гроз контролировать проветривание | Скачки RH |
 | **Сентябрь** | RH **+3…+5 %**, объём как в мае | У помидоров RH **−3…−5 %** | Конденсат, меньше света, похолодание |
 
-Подключение helpers в `configuration.yaml`:
-
-```yaml
-input_select: !include input_select.yaml
-input_number: !include input_number.yaml
-automation: !include_dir_merge_list automations/
-```
-
-Ручная правка `input_number` на дашборде сохраняется до следующей смены профиля или перезапуска HA (при старте снова применяется выбранный профиль).
+Ручная правка `input_number` на дашборде сохраняется до следующей смены профиля или перезапуска HA (при старте снова применяется выбранный профиль). **`input_boolean.greenhouse_season_active`:** включите при монтаже щита, выключите зимой — см. [§5.4](#54-сезонная-эксплуатация).
 
 ---
 
@@ -368,11 +245,13 @@ automation: !include_dir_merge_list automations/
 | **Сезон** | ~май–сентябрь | На объекте, 220 V, Wi‑Fi | Автоматизации активны | Управление с ESP32 |
 | **Межсезонье** | ~октябрь–апрель | **Снят**, хранение в сухом помещении | Сущности `greenhouse_*` **unavailable**; automations **не выполняют действия** (нет устройств) | **Ручно** — краны/клапаны на объекте, если оставлены |
 
-**Home Assistant зимой:** Pi 5 и automations в конфиге **остаются**; offline ESP32 не «ломают» HA — триггеры по расписанию могут срабатывать, но `action:` на unavailable entities завершится ошибкой или пропуском. Ожидаемое поведение; опционально можно добавить `input_boolean.greenhouse_season_active` и условие в automations (не включено в репозиторий по умолчанию).
+**Home Assistant зимой:** Pi 5 и automations в конфиге **остаются**; offline ESP32 не «ломают» HA — триггеры по расписанию могут срабатывать, но `action:` на unavailable entities завершится ошибкой или пропуском. В репозитории включён **`input_boolean.greenhouse_season_active`** (`homeassistant/input_boolean.yaml`): включайте **on** при монтаже щита (~май), **off** после демонтажа (~окт); actuator‑automations в `greenhouse.yaml` проверяют этот helper.
+
+**CV (опционально):** загрузка в Yandex Object Storage и вызов Yandex AI Studio — **только с Pi**; edge SBC передаёт снимки локально на Pi ([05 §2](05-computer-vision.md#2-архитектура)).
 
 **Сеть:** Stellar 6 может оставаться на улице круглый год (уличный корпус); резервирование IP ESP32 в Keenetic сохраняется на следующий сезон.
 
-**CV (опционально):** edge SBC **уезжает со щитом**; камеры — оставить без PoE или снять ([05 §0.1.4](05-computer-vision.md#014-сезонная-эксплуатация-cv)).
+**CV edge:** Radxa `.13` **уезжает со щитом**; камеры — оставить без PoE или снять ([05 §0.1.4](05-computer-vision.md#014-сезонная-эксплуатация-cv)).
 
 Процедуры монтажа/демонтажа и маркировка FTP — [03 §0.1](03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита).
 
@@ -385,21 +264,23 @@ automation: !include_dir_merge_list automations/
 [Интернет]
     │
 [Keenetic Speedster]
-    ├── VLAN/Home  192.168.1.0/24  — ПК, телефоны (доверенные)
-    ├── VLAN/IoT   192.168.30.0/24 — ESP32, edge SBC (.13), камеры (ограниченные)
+    ├── VLAN/Home  192.168.1.0/24  — ПК, телефоны, **Raspberry Pi 5 (HA)**
+    ├── VLAN/IoT   192.168.30.0/24 — ESP32, edge SBC (.13), PoE камеры (local-only)
     └── VLAN/Mgmt  192.168.99.0/24 — коммутатор, AP (опц.)
 
-Firewall (IoT → Home): DENY по умолчанию
-Firewall (Home → IoT): ALLOW только HA (192.168.1.x → ESP32:6053 API)
-Firewall (IoT → Internet): DENY (ESP32 не нужен выход в интернет после OTA)
+Firewall (IoT → Internet): DENY по умолчанию (ESP32, камеры, Radxa .13 — без WAN)
+Firewall (Pi → Internet): ALLOW HTTPS → Yandex Cloud (Object Storage, Foundation Models)
+Firewall (edge .13 → Pi): ALLOW REST/MQTT/SCP — доставка CV inbox; **DENY** edge → Yandex
+Firewall (Home → IoT): ALLOW HA → ESP32 API; Pi orchestrates CV
 ```
 
 **Keenetic — правила межсегментного экрана:**
 
 1. **Правила и политики → Межсетевой экран → IoT_Greenhouse**.
-2. Запретить: `IoT → Любой → Домашняя сеть` (192.168.1.0/24).
-3. Разрешить: `Домашняя → IoT → TCP 6053` (ESPHome native API, если используется).
-4. Запретить: `IoT → Интернет` (или разрешить только NTP при необходимости).
+2. Запретить: `IoT → Интернет` (ESP32, камеры `.21/.22`, Radxa `.13`).
+3. Разрешить: `edge .13 → cameras .21/.22` TCP **554** (RTSP); `edge .13 → Pi` REST/MQTT/SCP.
+4. На сегменте **Home** (Pi): разрешить HTTPS к `storage.yandexcloud.net`, `llm.api.cloud.yandex.net` — **единственный** хост с доступом в Yandex Cloud для CV.
+5. Ограничить `IoT → Домашняя сеть` явными правилами Pi↔IoT (HA API, CV inbox).
 
 ### 6.2. Доступ к ESP32
 

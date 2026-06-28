@@ -28,6 +28,7 @@ smart-greenhouse/
 │   │   └── greenhouse_cv.yaml.example  # Optional CV capture/analyze (not active by default)
 │   ├── input_select.yaml            # Plant profile selector (include in configuration.yaml)
 │   ├── input_number.yaml            # Setpoints — irrigation, vent thresholds (include in configuration.yaml)
+│   ├── input_boolean.yaml           # Season gate greenhouse_season_active
 │   └── plant_profiles.yaml          # Profile default values (reference; applied by automation)
 ├── .cursor/
 │   └── skills/
@@ -92,9 +93,9 @@ Automations in `homeassistant/automations/greenhouse.yaml` orchestrate ESPHome e
 | Проветривание | max T or avg RH above profile setpoints | triangulation sensors, vent covers |
 | Закрыть форточки на ночь | Sunset + low lux | vent covers |
 
-**Seasonal:** cabinet removed ~Oct–Apr; ESP32 offline → greenhouse automations do not actuate hardware; entities may show unavailable ([03 §0.1](docs/03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита), [01 §5.4](docs/01-overview.md#54-сезонная-эксплуатация)). Comment in `greenhouse.yaml` notes optional `input_boolean.greenhouse_season_active` gate (not implemented by default).
+**Seasonal:** cabinet removed ~Oct–Apr; ESP32 offline → set `input_boolean.greenhouse_season_active` to **off** so greenhouse automations skip actuators; entities may show unavailable ([03 §0.1](docs/03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита), [01 §5.4](docs/01-overview.md#54-сезонная-эксплуатация)). Helper in `homeassistant/input_boolean.yaml`.
 
-Optional computer vision (design in [05-computer-vision.md](docs/05-computer-vision.md)): 2× PoE IP cameras for **П‑layout** beds **inside** the greenhouse; **Radxa ZERO 3W edge SBC** (`192.168.30.13`) in the **outdoor IP65 cabinet** at the entrance for RTSP capture and optional local HF/ONNX inference; snapshots **07:00 + sunset−45m** gated by BH1750 lux; upload to **Yandex Object Storage** + **Yandex AI Studio** (Foundation Models) for heavy analysis; **MQTT/API** results to Home Assistant on Pi 5; alerts coupled to vent/irrigation — see `greenhouse_cv.yaml.example` and `scripts/capture_and_analyze.sh` (stubs, deploy on edge not Pi by default).
+Optional computer vision (design in [05-computer-vision.md](docs/05-computer-vision.md)): 2× PoE IP cameras for **П‑layout** beds **inside** the greenhouse; **Radxa ZERO 3W edge SBC** (`192.168.30.13`) in the **outdoor IP65 cabinet** — **local-only** RTSP capture, optional ONNX pre-filter, delivers images to Pi via LAN (SCP/HTTP/MQTT); **Raspberry Pi 5 / HA** uploads to **Yandex Object Storage** and calls **Yandex AI Studio** (Foundation Models); snapshots **07:00 + sunset−45m** gated by BH1750 lux; vent/irrigation coupling on Pi — see `greenhouse_cv.yaml.example` and `scripts/capture_and_analyze.sh` (Pi-side). Edge reference: `edge_capture.sh` (not in repo).
 
 Profile helpers (`input_select.greenhouse_plant_profile`, `input_number.greenhouse_*`): include `input_select.yaml` and `input_number.yaml` in `configuration.yaml`. Defaults target **central Russia** (peak season); seasonal manual tweaks — `plant_profiles.yaml` `seasonal_notes` and `docs/01-overview.md` §4.6. Greenhouse interior RH is typically **70–95%**; `vent_humidity_max` triggers vent at the **upper** band, not because 70% is “low”. Irrigation uses **average air humidity** as a **relative** soil-moisture proxy (drop below profile threshold from the GH baseline) — no soil sensor in current hardware.
 
