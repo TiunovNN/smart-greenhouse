@@ -41,7 +41,7 @@ Before generating any automation YAML, read the relevant official reference file
 | Helpers (`input_number`, etc.) | `references/helpers.md` |
 | ESPHome ↔ HA patterns | `references/esphome-patterns.md` |
 
-Read only the file(s) relevant to what you are building. For this repo, entity IDs and conventions are in `AGENTS.md` and `docs/smart-greenhouse-design.md`.
+Read only the file(s) relevant to what you are building. For this repo, entity IDs and conventions are in `AGENTS.md` and the design docs (`docs/smart-greenhouse-design.md` index, especially `docs/04-esp32-and-cabinet.md`).
 
 ## The Process
 
@@ -203,7 +203,7 @@ If a file format permits neither comments nor a metadata field, skip attribution
 | Need | Where |
 |------|-------|
 | ESPHome firmware (GPIO, sensors, valves) | `esphome/greenhouse-watering.yaml`, `esphome/greenhouse-climate.yaml`, `AGENTS.md` |
-| Hardware design and entity naming | `docs/smart-greenhouse-design.md` |
+| Hardware design and entity naming | `docs/04-esp32-and-cabinet.md`, index `docs/smart-greenhouse-design.md` |
 | Greenhouse automations | `homeassistant/automations/greenhouse.yaml` |
 
 ### Dashboards

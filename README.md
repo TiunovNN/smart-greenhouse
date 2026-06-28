@@ -2,7 +2,7 @@
 
 Automated greenhouse control with **Home Assistant** and two **ESPHome** ESP32 nodes: irrigation/tank management and climate/ventilation.
 
-Full hardware design, wiring, and network layout: [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md).
+Full hardware design, wiring, and network layout: [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (index → [01](docs/01-overview.md) · [02](docs/02-components-and-server.md) · [03](docs/03-greenhouse-installation.md) · [04](docs/04-esp32-and-cabinet.md)).
 
 Contributor and agent guide: [AGENTS.md](AGENTS.md).
 
@@ -45,7 +45,11 @@ Verify entity IDs in **Settings → Devices** match the automation file (they de
 | `esphome/greenhouse-watering.yaml` | Valves, flow meters, tank level, DS18B20 |
 | `esphome/greenhouse-climate.yaml` | SHT3x, BH1750, PCA9685 servos, vent covers |
 | `homeassistant/automations/greenhouse.yaml` | Irrigation, tank fill, ventilation automations |
-| `docs/smart-greenhouse-design.md` | Complete system design (source of truth) |
+| `docs/smart-greenhouse-design.md` | Design doc index (links to split docs below) |
+| `docs/01-overview.md` | Architecture, network, automations, operations |
+| `docs/02-components-and-server.md` | Component list (BOM), HA server |
+| `docs/03-greenhouse-installation.md` | Greenhouse mounting, hydraulics |
+| `docs/04-esp32-and-cabinet.md` | ESP32 programming, cabinet, GPIO |
 
 ## License
 

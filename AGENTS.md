@@ -4,14 +4,18 @@ Guide for AI agents and contributors working on this repository.
 
 ## Project purpose
 
-Smart greenhouse automation built on **Home Assistant** (logic, automations, dashboard) and **ESPHome** (two ESP32 nodes: watering/tank and climate/windows). The full hardware design, wiring, and rationale are in [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (Russian).
+Smart greenhouse automation built on **Home Assistant** (logic, automations, dashboard) and **ESPHome** (two ESP32 nodes: watering/tank and climate/windows). The full hardware design, wiring, and rationale are in [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (index, Russian) and four linked docs: [01-overview](docs/01-overview.md), [02-components-and-server](docs/02-components-and-server.md), [03-greenhouse-installation](docs/03-greenhouse-installation.md), [04-esp32-and-cabinet](docs/04-esp32-and-cabinet.md).
 
 ## Repository layout
 
 ```
 smart-greenhouse/
 ├── docs/
-│   └── smart-greenhouse-design.md   # Source of truth (hardware, network, YAML specs)
+│   ├── smart-greenhouse-design.md   # Index (source of truth entry point)
+│   ├── 01-overview.md               # Architecture, network, automations, ops, security
+│   ├── 02-components-and-server.md  # BOM, HA server, Mesh hardware
+│   ├── 03-greenhouse-installation.md # Sensors, actuators, hydraulic layout
+│   └── 04-esp32-and-cabinet.md      # Cabinet, GPIO, ESPHome, entity IDs
 ├── esphome/
 │   ├── greenhouse-watering.yaml     # ESP32 #1 — irrigation, tank, flow meters
 │   ├── greenhouse-climate.yaml      # ESP32 #2 — climate sensors, vent windows
@@ -51,7 +55,7 @@ Home Assistant generates `entity_id` values from friendly names (often translite
 
 ### GPIO and calibration
 
-- Pin assignments are fixed in the design doc (section 4.2 / 4.3). Change only when hardware changes.
+- Pin assignments are fixed in the design doc ([04-esp32-and-cabinet.md](docs/04-esp32-and-cabinet.md) §4.2 / §4.3). Change only when hardware changes.
 - **Flow meters** (`multiply: 0.00222`): calibrate against known volume; design doc notes ~450 pulses/L for YF-S201.
 - **DS18B20 address** (`0x000000000000` in watering config): replace after first OneWire scan.
 - **Wi-Fi BSSID** (watering config): uncomment and set after identifying the nearest mesh AP.
@@ -67,7 +71,7 @@ esphome run greenhouse-climate.yaml
 # Subsequent updates: esphome run ... or OTA from ESPHome dashboard
 ```
 
-Static IPs: watering `192.168.30.11`, climate `192.168.30.12` on IoT VLAN (see design doc section 3).
+Static IPs: watering `192.168.30.11`, climate `192.168.30.12` on IoT VLAN (see [01-overview.md](docs/01-overview.md) §3).
 
 ## Home Assistant automations
 
@@ -87,7 +91,7 @@ Import via **Settings → Automations → Import** or include in `configuration.
 automation: !include_dir_merge_list automations/
 ```
 
-Entity IDs in automations must match your HA instance after ESPHome pairing. The design doc table (section 4.4) lists expected IDs.
+Entity IDs in automations must match your HA instance after ESPHome pairing. The design doc table ([04-esp32-and-cabinet.md](docs/04-esp32-and-cabinet.md) §4.4) lists expected IDs.
 
 Use **modern HA syntax** (2024.8+): plural `triggers:` / `conditions:` / `actions:`, service calls as `action:` (not `service:`), `trigger: state` inside trigger lists (not `platform:`). See `.cursor/skills/home-assistant/SKILL.md` when editing automations.
 
@@ -112,7 +116,7 @@ Adapted from [aurora-smart-home/home-assistant](https://github.com/tonylofgren/a
 
 ## When making changes
 
-1. Read [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) for context.
-2. Keep ESPHome YAML aligned with sections 4.2 and 4.3 unless hardware changed.
+1. Read [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (index) and the relevant split doc for context.
+2. Keep ESPHome YAML aligned with [04-esp32-and-cabinet.md](docs/04-esp32-and-cabinet.md) §4.2 and §4.3 unless hardware changed.
 3. Update HA automations when entity IDs or logic change.
 4. Test on device or with `esphome config <file>.yaml` before suggesting deploy.
