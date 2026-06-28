@@ -233,7 +233,7 @@
   alias: "Теплица CV — водный стресс → подсказка полива"
   description: >-
     Уведомление и подготовка целевого объёма; автоматический полив НЕ включается
-    (конфликт с greenhouse_irrigation_by_humidity). Оператор решает вручную.
+    (конфликт с greenhouse_irrigation_by_soil_moisture). Оператор решает вручную.
   mode: single
   triggers:
     - trigger: state

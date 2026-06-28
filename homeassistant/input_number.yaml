@@ -8,6 +8,9 @@
 # automation greenhouse_apply_plant_profile (see plant_profiles.yaml).
 # Manual tweaks persist until the profile is switched again.
 
+# Irrigation trigger uses minimum soil moisture across 6 capacitive probes (greenhouse-watering).
+# greenhouse_irrigation_humidity_min kept for reference / optional CV hints — not used by irrigation.
+
 greenhouse_irrigation_volume:
   name: "Теплица — объём полива"
   min: 0.5
@@ -19,7 +22,7 @@ greenhouse_irrigation_volume:
   mode: box
 
 greenhouse_irrigation_humidity_min:
-  name: "Теплица — полив при RH ниже"
+  name: "Теплица — полив при RH ниже (справочно)"
   min: 40
   max: 90
   step: 1
@@ -27,7 +30,7 @@ greenhouse_irrigation_humidity_min:
   icon: mdi:water-percent
   initial: 68
   mode: box
-  # GH interior RH typically 70–95%; threshold = relative drop proxy for soil drying
+  # Legacy air-RH proxy — irrigation uses soil moisture; kept for CV hints / dashboard reference
 
 greenhouse_vent_temp_open:
   name: "Теплица — проветривание при max T выше"
@@ -60,10 +63,9 @@ greenhouse_vent_humidity_max:
   mode: box
   # Upper-band trigger in 70–95% GH range; not "low humidity" semantics
 
-# Placeholder until a soil moisture sensor is wired (see docs/01-overview.md §4.6).
-# Not used by automations today — irrigation uses average air RH from SHT31 as proxy.
+# Active irrigation setpoint — compare to sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy
 greenhouse_soil_moisture_min:
-  name: "Теплица — целевая влажность почвы (резерв)"
+  name: "Теплица — полив при влажности почвы ниже"
   min: 20
   max: 90
   step: 1

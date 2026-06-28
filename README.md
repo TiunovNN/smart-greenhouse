@@ -36,6 +36,8 @@ Include helpers and automations in `configuration.yaml`:
 input_boolean: !include input_boolean.yaml   # greenhouse_season_active — on May–Sep
 input_select: !include input_select.yaml       # plant profile (Огурцы / Помидоры)
 input_number: !include input_number.yaml       # irrigation / vent setpoints
+input_button: !include input_button.yaml       # soil probe calibration wizard buttons
+script: !include_dir_merge_named scripts/      # greenhouse_soil_moisture_calibrate
 automation: !include_dir_merge_list automations/
 ```
 
@@ -58,11 +60,13 @@ uv run scripts/generate_bom.py
 
 | Path | Purpose |
 |------|---------|
-| `esphome/greenhouse-watering.yaml` | Valves, flow meters, tank level, DS18B20 |
+| `esphome/greenhouse-watering.yaml` | Valves, flow meters, tank level, DS18B20, soil moisture (ADS1115 ×2) |
 | `esphome/greenhouse-climate.yaml` | SHT3x, BH1750, PCA9685 servos, vent covers |
 | `homeassistant/input_boolean.yaml` | Season gate `greenhouse_season_active` |
 | `homeassistant/input_select.yaml` | Plant profile selector |
 | `homeassistant/input_number.yaml` | Profile setpoints (irrigation, vent) |
+| `homeassistant/input_button.yaml` | Soil probe calibration wizard buttons |
+| `homeassistant/scripts/greenhouse_soil_cal.yaml` | Guided dry/wet soil moisture calibration |
 | `homeassistant/plant_profiles.yaml` | Default profile values (reference) |
 | `homeassistant/automations/greenhouse.yaml` | Irrigation, tank fill, ventilation automations |
 | `homeassistant/automations/greenhouse_cv.yaml.example` | Optional CV orchestration on Pi (not active by default) |

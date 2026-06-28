@@ -87,7 +87,7 @@ ASCII (для монтажа на объекте):
 
 ![SHT31 — цифровой датчик температуры и влажности воздуха (I²C)](images/components/sht31-sensor.jpg)
 
-*Датчики ★: SHT31 ×3, BH1750 ×2, DS18B20 waterproof ×2, контактные уровни бака (3 болта), YF‑S201 ×2.*
+*Датчики ★: SHT31 ×3, BH1750 ×2, DS18B20 waterproof ×2, **ёмкостная влажность почвы IP68 ×6**, ADS1115 ×2, контактные уровни бака (3 болта), YF‑S201 ×2.*
 
 ![BH1750 — датчик освещённости по шине I²C для автоматизации форточек](images/components/bh1750-light-sensor.jpg)
 
@@ -102,15 +102,19 @@ ASCII (для монтажа на объекте):
 | T воды ×2 | DS18B20 в гильзе | **DS18B20 waterproof 1 м** | DS18B20 3 м + термопаста | `DS18B20 водонепроницаемый` |
 | Уровень воды | 3 нержавеющих болта M4/M5 + клеммы | **3 контактных болта: верх / средний / нижний общий** | Ультразвук JSN‑SR04T | `болт нержавеющий M4 клемма кольцевая` |
 | Поток ×2 | YF‑S201 | **YF‑S201 1/2"** | YF‑B5 (больше диапазон) | `YF-S201 датчик расхода` — [iArduino](https://iarduino.ru/shop/Sensory-Datchiki/datchik-rashoda-vody-1-2-dyuyma.html) |
+| Влажность почвы ×6 | Резистивный модуль (не для сезона) | **Герметичный ёмкостный аналоговый зонд IP68 (класс Vegetronix VH400)** | RS485 industrial (JXBS‑3001) | `Vegetronix VH400` · `ёмкостный датчик влажности почвы IP68 аналоговый` |
+| АЦП почвы | — | **ADS1115 16‑bit I²C ×2** (ADDR 0x48 / 0x49) | ADS1015 | `ADS1115 модуль I2C` — [youbot.ru](https://www.youbot.ru/search?q=ADS1115) |
 
 | Датчик | Кол-во | Цена ★, ₽ | Сумма, ₽ |
 |--------|--------|-----------|----------|
 | SHT31 | 3 | 300–450 | 1 050 |
 | BH1750 | 2 | 150–250 | 400 |
 | DS18B20 waterproof | 2 | 150–250 | 400 |
+| Ёмкостный зонд почвы IP68 (VH400 class) | 6 | 850–1 200 | 5 400 |
+| ADS1115 I²C ADC | 2 | 180–280 | 440 |
 | Контактные уровни бака (болты + клеммы) | 1 компл. | 100–300 | 200 |
 | YF‑S201 | 2 | 400–550 | 900 |
-| **Итого датчики** | | | **~2 950** |
+| **Итого датчики** | | | **~8 790** |
 
 #### 1.4.1. Размещение SHT31 ×3 (триангуляция климата)
 
@@ -148,6 +152,44 @@ ASCII (для монтажа на объекте):
 **Монтаж:** корпус SHT31 вдали от прямого солнеца и капель конденсата; кабель FTP (SDA/SCL/5 V/GND) **из теплицы наружу в щит** у входа (§0). На каждой шине I2C — **разные** адреса 0x44 и 0x45 (перемычка ADDR на модуле GY‑SHT31‑D).
 
 **Триангуляция в ESPHome** (`greenhouse-climate.yaml`): средние T/RH, min/max, разброс (Δ), текстовые метки «горячей» и «холодной» зоны. Автоматизация проветривания в HA: **max T** по зонам (перегрев где угодно) + **средняя влажность** (риск конденсата) — см. [§4.5](01-overview.md#45-примеры-автоматизаций-home-assistant).
+
+#### 1.4.3. Влажность почвы ×6 (П‑layout, ESP32 полива)
+
+Шесть **герметичных ёмкостных** аналоговых зондов (класс **Vegetronix VH400** — эпоксидный корпус, без exposed‑metal резистивных «гвоздей») равномерно покрывают оба плеча **П‑layout** грядок. Зонд в **корневой зоне 10–15 см**, вдали от капельного эмиттера (≥15 cm), кабель **3‑wire** (5 V / GND / SIG) по FTP в щит; **АЦП в щите** — два модуля **ADS1115** (I²C **0x48** / **0x49**) на ESP32 №1 GPIO21/22. Встроенный ADC ESP32 не используется (6 каналов, шум, Wi‑Fi).
+
+```mermaid
+flowchart TB
+  subgraph gh["Теплица · вид сверху · зонды почвы"]
+    S1["① L у входа<br/>soil_l_near"]
+    S2["② L середина<br/>soil_l_mid"]
+    S3["③ L излом П<br/>soil_l_far"]
+    S4["④ R у входа<br/>soil_r_near"]
+    S5["⑤ R середина<br/>soil_r_mid"]
+    S6["⑥ R излом П<br/>soil_r_far"]
+    DOOR["дверь"]
+    DOOR --- S1
+    DOOR --- S4
+    S1 --- S2 --- S3
+    S4 --- S5 --- S6
+  end
+  subgraph cab["Щит · greenhouse-watering"]
+    ADS["ADS1115 ×2"]
+    E1["ESP32 №1"]
+    ADS --> E1
+  end
+  S1 & S2 & S3 & S4 & S5 & S6 -->|"SIG ×6 · FTP"| ADS
+```
+
+| Зона | Размещение на плече | ESPHome ID | ADS1115 |
+|------|---------------------|------------|---------|
+| L у входа | ~⅓ длины плеча от двери, 10–15 cm глубина | `soil_l_near` | 0x48 · A0 |
+| L середина | середина плеча | `soil_l_mid` | 0x48 · A1 |
+| L излом П | у дальнего торца (излом П) | `soil_l_far` | 0x48 · A2 |
+| R у входа | ~⅓ от двери, зеркально L | `soil_r_near` | 0x48 · A3 |
+| R середина | середина плеча | `soil_r_mid` | 0x49 · A0 |
+| R излом П | излом П | `soil_r_far` | 0x49 · A1 |
+
+**Сезон в мокрой почве:** только **ёмкостные герметичные** зонды; резистивные модули корродируют за 2–4 недели при RH почвы 70–95 %. После монтажа — **покалибровать каждый зонд** «сухо/мокро» для вашего субстрата: в HA выберите зону в `input_select.greenhouse_soil_cal_probe`, нажмите **«Теплица — калибровка зонда почвы (старт)»**, следуйте уведомлениям (сухая опора → подтверждение → влажная опора → подтверждение). Скрипт `script.greenhouse_soil_moisture_calibrate` записывает напряжения в `number.greenhouse_watering_pochva_*_kalib_sukho` / `_kalib_mokro` на ESP32 (сохраняются при перезагрузке). Стартовые значения — `soil_cal_dry_v` / `soil_cal_wet_v` в `esphome/greenhouse-watering.yaml`. Полив в HA — по **минимуму** из 6 зон (`sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy`).
 
 #### 1.4.2. П‑образная планировка грядок и камеры CV
 
@@ -326,19 +368,21 @@ ASCII (для печати / быстрой сверки на объекте):
 | Объём между контактами | number | `number.greenhouse_watering_bak_obem_mezhdu_urovnyami` |
 | Коэффициент расходомера наполнения | number | `number.greenhouse_watering_bak_koeffitsient_raskhodomera_napolneniya` |
 | Импульсы последней калибровки | sensor | `sensor.greenhouse_watering_bak_impulsy_posledney_kalibrovki` |
+| Влажность почвы ×6 (зональная) | sensor | `sensor.greenhouse_watering_pochva_*_vlazhnost` |
+| Мин. / средняя влажность почвы | sensor | `sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy`, `..._srednyaya_vlazhnost_pochvy` |
 
 **Автоматизации HA** (`homeassistant/automations/greenhouse.yaml`):
 
 | ID | Назначение |
 |----|------------|
 | `greenhouse_apply_plant_profile` | Уставки полива/проветривания по профилю (огурцы / помидоры) |
-| `greenhouse_irrigation_by_humidity` | Полив до целевого объёма (утро, RH ниже уставки профиля, светло) |
+| `greenhouse_irrigation_by_soil_moisture` | Полив до целевого объёма (утро, мин. влажность почвы ниже уставки, светло) |
 | `greenhouse_tank_fill` | Наполнение от среднего до верхнего уровня с учётом расхода |
 | `greenhouse_tank_overflow_protection` | Аварийное закрытие при переполнении |
 | `greenhouse_watering_no_flow_alert` | Закрытие клапана и уведомление при «нет потока» |
 | `greenhouse_watering_post_close_flow_alert` | Уведомление при неожиданном потоке на закрытой линии (после закрытия или в простое) |
 
-Helpers: `input_select.greenhouse_plant_profile`, `input_number.greenhouse_*` (`homeassistant/input_select.yaml`, `input_number.yaml`). Профили и прокси RH — см. [01-overview.md §4.6](01-overview.md#46-профили-культур-огурцы--помидоры).
+Helpers: `input_select.greenhouse_plant_profile`, `input_number.greenhouse_*` (`homeassistant/input_select.yaml`, `input_number.yaml`). Профили и уставки почвы — см. [01-overview.md §4.6](01-overview.md#46-профили-культур-огурцы--помидоры).
 
 #### 2.6.4. Капельная линия — рекомендации
 

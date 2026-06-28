@@ -40,11 +40,26 @@
 #   number.greenhouse_watering_bak_obem_mezhdu_urovnyami
 #   number.greenhouse_watering_bak_koeffitsient_raskhodomera_napolneniya
 #
+# Soil moisture (6× sealed capacitive probes via ADS1115 on watering ESP — verify after flash):
+#   sensor.greenhouse_watering_pochva_l_u_vkhoda_vlazhnost
+#   sensor.greenhouse_watering_pochva_l_seredina_vlazhnost
+#   sensor.greenhouse_watering_pochva_l_izlom_p_vlazhnost
+#   sensor.greenhouse_watering_pochva_r_u_vkhoda_vlazhnost
+#   sensor.greenhouse_watering_pochva_r_seredina_vlazhnost
+#   sensor.greenhouse_watering_pochva_r_izlom_p_vlazhnost
+#   sensor.greenhouse_watering_teplitsa_srednyaya_vlazhnost_pochvy
+#   sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy  ← irrigation trigger (min zone)
+#   sensor.greenhouse_watering_pochva_*_napryazhenie  ← raw V for calibration script
+#   number.greenhouse_watering_pochva_*_kalib_sukho / _kalib_mokro  ← per-probe cal (ESP32 NVS)
+#
+# Soil calibration helpers: input_select.greenhouse_soil_cal_probe, input_button.greenhouse_soil_cal_*
+# Script: script.greenhouse_soil_moisture_calibrate (scripts/greenhouse_soil_cal.yaml)
+#
 # Helpers: input_boolean.greenhouse_season_active, input_select.greenhouse_plant_profile, input_number.*
 # (input_boolean.yaml, input_select.yaml, input_number.yaml)
 # Profile defaults: homeassistant/plant_profiles.yaml — applied by greenhouse_apply_plant_profile
 # Prefer number.greenhouse_watering_poliv_tselevoy_obem on device; input_number is a dashboard fallback.
-# Irrigation uses avg air RH (SHT31) as relative soil-moisture proxy — GH baseline 70–95%, not room air.
+# Irrigation uses minimum soil moisture across 6 probes — not air RH.
 
 - id: greenhouse_apply_plant_profile
   alias: "Теплица — применить профиль культуры"
@@ -130,11 +145,11 @@
               data:
                 value: 55
 
-- id: greenhouse_irrigation_by_humidity
-  alias: "Теплица — полив по влажности"
+- id: greenhouse_irrigation_by_soil_moisture
+  alias: "Теплица — полив по влажности почвы"
   description: >-
-    Полив до целевого объёма если средняя RH воздуха ниже уставки профиля
-    (прокси влажности почвы) и светло
+    Полив до целевого объёма если минимальная влажность почвы (6 зондов)
+    ниже уставки профиля и светло
   mode: single
   triggers:
     - trigger: time
@@ -145,8 +160,8 @@
       state: "on"
     - condition: template
       value_template: >-
-        {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(100) <
-           states('input_number.greenhouse_irrigation_humidity_min') | float(55) }}
+        {{ states('sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy') | float(100) <
+           states('input_number.greenhouse_soil_moisture_min') | float(55) }}
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       above: 500
@@ -503,3 +518,15 @@
                   открыта: {{ states('binary_sensor.greenhouse_climate_fortochka_2_otkryta_kontsevik') }},
                   угол: {{ states('number.okno_2_ugol') | float(0) | round(0) }}°).
                   Проверьте привод, механику и монтаж концевиков.
+
+- id: greenhouse_soil_moisture_calibrate_start
+  alias: "Теплица — запуск калибровки зонда почвы"
+  description: >-
+    Запускает script.greenhouse_soil_moisture_calibrate после выбора зонда
+    в input_select.greenhouse_soil_cal_probe.
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id: input_button.greenhouse_soil_cal_start
+  actions:
+    - action: script.greenhouse_soil_moisture_calibrate

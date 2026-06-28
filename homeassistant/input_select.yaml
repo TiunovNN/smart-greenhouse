@@ -14,3 +14,16 @@ greenhouse_plant_profile:
     - "Помидоры"
   initial: "Огурцы"
   icon: mdi:sprout
+
+# Probe under calibration — one at a time; matches docs/03 §1.4.3 zone labels.
+greenhouse_soil_cal_probe:
+  name: "Теплица — зонд для калибровки"
+  options:
+    - "L у входа"
+    - "L середина"
+    - "L излом П"
+    - "R у входа"
+    - "R середина"
+    - "R излом П"
+  initial: "L у входа"
+  icon: mdi:flower-tulip-outline

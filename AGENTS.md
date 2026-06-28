@@ -28,6 +28,8 @@ smart-greenhouse/
 │   │   └── greenhouse_cv.yaml.example  # Optional CV capture/analyze (not active by default)
 │   ├── input_select.yaml            # Plant profile selector (include in configuration.yaml)
 │   ├── input_number.yaml            # Setpoints — irrigation, vent thresholds (include in configuration.yaml)
+│   ├── input_button.yaml            # Soil probe calibration wizard buttons
+│   ├── scripts/greenhouse_soil_cal.yaml  # Guided dry/wet soil calibration script
 │   ├── input_boolean.yaml           # Season gate greenhouse_season_active
 │   └── plant_profiles.yaml          # Profile default values (reference; applied by automation)
 ├── .cursor/
@@ -45,7 +47,7 @@ smart-greenhouse/
 | ESPHome device name | kebab-case | `greenhouse-watering`, `greenhouse-climate` |
 | ESPHome internal IDs | snake_case | `valve_irrigation`, `temp_center_top`, `temp_entrance_low` |
 | HA entity prefix | Derived from device name | `greenhouse_watering_*`, climate entities from Russian friendly names |
-| Automation IDs | snake_case, prefixed | `greenhouse_irrigation_by_humidity` |
+| Automation IDs | snake_case, prefixed | `greenhouse_irrigation_by_soil_moisture` |
 | Plant profile select | `input_select.greenhouse_plant_profile` | States: `Огурцы`, `Помидоры` |
 | Profile setpoints | `input_number.greenhouse_*` | See `plant_profiles.yaml` and `docs/01-overview.md` §4.6 (central Russia defaults + seasonal notes) |
 
@@ -87,7 +89,7 @@ Automations in `homeassistant/automations/greenhouse.yaml` orchestrate ESPHome e
 | Automation | Triggers | ESPHome entities used |
 |------------|----------|------------------------|
 | Применить профиль культуры | Profile change / HA start | `input_select`, `input_number` helpers |
-| Полив по влажности | 07:00 daily | avg RH (SHT31 proxy), lux, irrigation valve |
+| Полив по влажности почвы | 07:00 daily | min soil moisture (6 probes), lux, irrigation valve |
 | Наполнение бака | Tank level drops | fill valve, level sensor |
 | Защита переполнения | Level high 5 s | fill valve off + notification |
 | Проветривание | max T or avg RH above profile setpoints | triangulation sensors, vent covers |
@@ -97,7 +99,7 @@ Automations in `homeassistant/automations/greenhouse.yaml` orchestrate ESPHome e
 
 Optional computer vision (design in [05-computer-vision.md](docs/05-computer-vision.md)): 2× PoE IP cameras for **П‑layout** beds **inside** the greenhouse; **Radxa ZERO 3W edge SBC** (`192.168.30.13`) in the **outdoor IP65 cabinet** — **local-only** RTSP capture, optional ONNX pre-filter, delivers images to Pi via LAN (SCP/HTTP/MQTT); **Raspberry Pi 5 / HA** uploads to **Yandex Object Storage** and calls **Yandex AI Studio** (Foundation Models); snapshots **07:00 + sunset−45m** gated by BH1750 lux; vent/irrigation coupling on Pi — see `greenhouse_cv.yaml.example` and `scripts/capture_and_analyze.sh` (Pi-side). Edge reference: `edge_capture.sh` (not in repo).
 
-Profile helpers (`input_select.greenhouse_plant_profile`, `input_number.greenhouse_*`): include `input_select.yaml` and `input_number.yaml` in `configuration.yaml`. Defaults target **central Russia** (peak season); seasonal manual tweaks — `plant_profiles.yaml` `seasonal_notes` and `docs/01-overview.md` §4.6. Greenhouse interior RH is typically **70–95%**; `vent_humidity_max` triggers vent at the **upper** band, not because 70% is “low”. Irrigation uses **average air humidity** as a **relative** soil-moisture proxy (drop below profile threshold from the GH baseline) — no soil sensor in current hardware.
+Profile helpers (`input_select.greenhouse_plant_profile`, `input_number.greenhouse_*`): include `input_select.yaml` and `input_number.yaml` in `configuration.yaml`. Defaults target **central Russia** (peak season); seasonal manual tweaks — `plant_profiles.yaml` `seasonal_notes` and `docs/01-overview.md` §4.6. Greenhouse interior RH is typically **70–95%**; `vent_humidity_max` triggers vent at the **upper** band, not because 70% is “low”. Irrigation uses **minimum soil moisture** from **6 sealed capacitive probes** on `greenhouse-watering` (ADS1115 ×2, compare to `input_number.greenhouse_soil_moisture_min`). **Soil calibration:** per-probe dry/wet V via `input_select.greenhouse_soil_cal_probe` + `input_button.greenhouse_soil_cal_*` → `script.greenhouse_soil_moisture_calibrate` (see `homeassistant/scripts/greenhouse_soil_cal.yaml`, docs/03 §1.4.3).
 
 Import via **Settings → Automations → Import** or include in `configuration.yaml`:
 

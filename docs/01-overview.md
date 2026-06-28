@@ -97,8 +97,8 @@
 Канонические automations с синтаксисом HA 2024.8+ — в `homeassistant/automations/greenhouse.yaml`. Ниже — сокращённый пример полива:
 
 ```yaml
-alias: "Теплица — полив по влажности"
-description: "Полив до целевого объёма если средняя RH ниже уставки профиля и светло"
+alias: "Теплица — полив по влажности почвы"
+description: "Полив до целевого объёма если мин. влажность почвы ниже уставки профиля и светло"
 mode: single
 triggers:
   - trigger: time
@@ -109,8 +109,8 @@ conditions:
     state: "on"
   - condition: template
     value_template: >-
-      {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(100) <
-         states('input_number.greenhouse_irrigation_humidity_min') | float(68) }}
+      {{ states('sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy') | float(100) <
+         states('input_number.greenhouse_soil_moisture_min') | float(60) }}
   - condition: numeric_state
     entity_id: sensor.osveshchennost_potolok
     above: 500
@@ -139,16 +139,16 @@ automation: !include_dir_merge_list automations/
 
 **Климат:** базовые уставки рассчитаны на **среднюю полосу России** (Москва, Владимир, Ярославль и аналогичные регионы) — континентальный климат, неотапливаемая или слабо отапливаемая hobby‑теплица, сезон **май–сентябрь**. **RH внутри теплицы обычно 70–95 %** (не как в жилых 40–60 %). Летом на солнце температура на **8–15 °C выше** уличной; без проветривания возможны **35 °C и выше**. Ночью в мае и сентябре — прохладные перепады (континентальность), риск конденсата на листьях и грибка у помидоров. Автоматизация **`greenhouse_close_vents_at_night`** закрывает форточки после заката; дневные пороги проветривания смещены **ниже**, чем в «усреднённых» западных таблицах.
 
-**Влажность почвы:** отдельного датчика в текущей схеме нет. Полив ориентируется на **среднюю RH воздуха** (`sensor.teplitsa_srednyaya_vlazhnost`, три SHT31) как **относительный** прокси: при **снижении** RH **от типичной линии 70–95 %** (ниже уставки профиля) почва обычно пересыхает. Это не «полив при 58 % = сухой воздух в комнате». Helper `input_number.greenhouse_soil_moisture_min` зарезервирован под будущий датчик почвы (кап capacitive / RS485 и т.п.).
+**Влажность почвы:** **6 герметичных ёмкостных аналоговых зондов** (класс **Vegetronix VH400** / IP68 epoxy-sealed capacitive, **не** резистивные «гвозди») на **П‑layout** грядках — по **3 зонда** на плечо L и R (у входа, середина, излом П), глубина **10–15 см** в корневой зоне. Сигнал через **2× ADS1115** (I²C **0x48** / **0x49**) на ESP32 №1 `greenhouse-watering` (GPIO21/22). ESPHome публикует зональные `%`, **среднюю** и **минимальную** влажность; автоматизация **`greenhouse_irrigation_by_soil_moisture`** поливает, когда **минимум по 6 зонам** ниже `input_number.greenhouse_soil_moisture_min`. Калибровка mV→% — **по каждому зонду** через HA (`script.greenhouse_soil_moisture_calibrate`, см. docs/03 §1.4.3). RH воздуха (SHT31) — только проветривание, не полив.
 
 | Параметр | Огурцы | Помидоры | Entity (уставка) |
 |----------|--------|----------|------------------|
-| Полив при RH **ниже** (прокси пересыхания) | 68 % | 58 % | `input_number.greenhouse_irrigation_humidity_min` |
+| Полив при **мин. влажности почвы ниже** | 60 % | 55 % | `input_number.greenhouse_soil_moisture_min` |
 | Объём за цикл | 6 л | 4,5 л | `input_number.greenhouse_irrigation_volume` |
 | Проветривание (частичное), max T **выше** | 26 °C | 24 °C | `input_number.greenhouse_vent_temp_open` |
 | Полное открытие, max T **выше** | 30 °C | 28 °C | `input_number.greenhouse_vent_temp_full` |
 | Проветривание, средняя RH **выше** (верхняя зона) | 82 % | 70 % | `input_number.greenhouse_vent_humidity_max` |
-| Целевая влажность почвы (резерв) | 60 % | 55 % | `input_number.greenhouse_soil_moisture_min` |
+| RH воздуха (справочно / CV) | 68 % | 58 % | `input_number.greenhouse_irrigation_humidity_min` |
 
 **Обоснование базовых уставок (пик сезона, июнь–август):**
 

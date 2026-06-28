@@ -5,38 +5,35 @@
 # Source of truth for defaults in automation greenhouse_apply_plant_profile.
 # See docs/01-overview.md §4.6 for climate rationale (средняя полоса России).
 #
-# Irrigation: no soil moisture sensor in current hardware; automations use
-# sensor.teplitsa_srednyaya_vlazhnost (SHT31 triangulation average) as a proxy
-# for «степень полива почвы». When a soil sensor is added, switch irrigation
-# logic to greenhouse_soil_moisture_min and entity sensor.greenhouse_*_vlazhnost_pochvy.
-#
+# Irrigation uses minimum soil moisture from 6 sealed capacitive probes on greenhouse-watering
+# (sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy). Air RH (SHT31) is for vent only.
 # Base values target peak season (June–August) in an unheated hobby greenhouse
 # in central Russia (Moscow / Vladimir / Yaroslavl belt). Interior RH is typically
 # 70–95% — not room-like 40–60%. vent_humidity_max is the UPPER-band vent trigger;
-# irrigation_humidity_min is a relative drop proxy, not "dry room air".
+# irrigation_humidity_min is legacy reference / CV hints — not used for irrigation.
 # Shoulder-season tweaks are manual — see seasonal_notes below and docs/01-overview.md §4.6.
 
 profiles:
   cucumbers:
     label: "Огурцы"
     # Peak-season base; May: raise humidity_min +5–8 %, reduce volume ~30 %
-    irrigation_humidity_min: 68   # % avg RH — irrigate when below (GH baseline 70–95%)
+    irrigation_humidity_min: 68   # % avg RH — reference / CV hints only
     irrigation_volume: 6            # L per cycle (Jul heat: up to 8 L)
     # Greenhouse adds ~8–15 °C vs outdoor on sunny days; vent before 35 °C stress
     vent_temp_open: 26              # °C max zone temp — partial vent (40%)
     vent_temp_full: 30              # °C — full vent (100%)
     vent_humidity_max: 82           # % avg RH — vent at upper band / stagnation (not "high for a room")
-    soil_moisture_min: 60           # placeholder only
+    soil_moisture_min: 60           # % — irrigate when min soil probe below (cucumbers)
     min_night_temp_alert: 14        # °C — doc reference only (no automation yet)
   tomatoes:
     label: "Помидоры"
-    irrigation_humidity_min: 58     # relative proxy; still within normal GH RH range when not irrigating
+    irrigation_humidity_min: 58     # reference / CV hints
     irrigation_volume: 4.5
     # Vent earlier: fungal risk on humid cool nights (May, Sept) in continental climate
     vent_temp_open: 24
     vent_temp_full: 28
     vent_humidity_max: 70           # lower — vent earlier (tomato fungal risk; GH RH often 70–95%)
-    soil_moisture_min: 55
+    soil_moisture_min: 55           # % — irrigate when min soil probe below (tomatoes)
     min_night_temp_alert: 12        # °C — doc reference only
 
 # Manual seasonal adjustments (re-apply profile after season, or tweak input_number on dashboard):

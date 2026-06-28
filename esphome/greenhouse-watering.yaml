@@ -10,6 +10,9 @@ esp32:
 
 substitutions:
   flow_multiplier: "0.00222"  # YF-S201 ~450 pulses/L — calibrate on bench
+  # Sealed capacitive soil probes (VH400 class): bench-calibrate mV → % after install
+  soil_cal_dry_v: "0.55"
+  soil_cal_wet_v: "2.45"
   no_flow_timeout_ms: "15000"
   no_flow_threshold_lmin: "0.05"
   post_close_settle_ms: "8000"   # delay after valve close before checking flow
@@ -43,6 +46,18 @@ wifi:
     password: !secret ap_fallback_password
 
 captive_portal:
+
+i2c:
+  - id: bus_soil
+    sda: GPIO21
+    scl: GPIO22
+    scan: true
+
+ads1115:
+  - address: 0x48
+    id: ads_soil_a
+  - address: 0x49
+    id: ads_soil_b
 
 globals:
   - id: fill_cycle_start_pulses
@@ -211,6 +226,364 @@ sensor:
       return id(fill_last_calibration_pulses);
     update_interval: 30s
 
+  # Sealed capacitive soil probes ×6 via 2× ADS1115 (0x48 / 0x49).
+  # Raw ADC → template % via per-probe number entities (HA calibration script writes dry/wet V).
+  - platform: ads1115
+    ads1115_id: ads_soil_a
+    multiplexer: A0_GND
+    gain: 6.144
+    id: soil_l_near_adc
+    internal: true
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва L у входа — напряжение"
+    id: soil_l_near_voltage
+    object_id: pochva_l_u_vkhoda_napryazhenie
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_l_near_adc).has_state()) {
+        return NAN;
+      }
+      return id(soil_l_near_adc).state;
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва L у входа — влажность"
+    id: soil_l_near
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_l_near_adc).has_state()) {
+        return NAN;
+      }
+      const float v = id(soil_l_near_adc).state;
+      const float dry = id(soil_l_near_cal_dry).state;
+      const float wet = id(soil_l_near_cal_wet).state;
+      if (isnan(dry) || isnan(wet) || wet <= dry + 0.01f) {
+        return NAN;
+      }
+      float pct = (v - dry) / (wet - dry) * 100.0f;
+      if (pct < 0.0f) pct = 0.0f;
+      if (pct > 100.0f) pct = 100.0f;
+      return pct;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    update_interval: 60s
+
+  - platform: ads1115
+    ads1115_id: ads_soil_a
+    multiplexer: A1_GND
+    gain: 6.144
+    id: soil_l_mid_adc
+    internal: true
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва L середина — напряжение"
+    id: soil_l_mid_voltage
+    object_id: pochva_l_seredina_napryazhenie
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_l_mid_adc).has_state()) {
+        return NAN;
+      }
+      return id(soil_l_mid_adc).state;
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва L середина — влажность"
+    id: soil_l_mid
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_l_mid_adc).has_state()) {
+        return NAN;
+      }
+      const float v = id(soil_l_mid_adc).state;
+      const float dry = id(soil_l_mid_cal_dry).state;
+      const float wet = id(soil_l_mid_cal_wet).state;
+      if (isnan(dry) || isnan(wet) || wet <= dry + 0.01f) {
+        return NAN;
+      }
+      float pct = (v - dry) / (wet - dry) * 100.0f;
+      if (pct < 0.0f) pct = 0.0f;
+      if (pct > 100.0f) pct = 100.0f;
+      return pct;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    update_interval: 60s
+
+  - platform: ads1115
+    ads1115_id: ads_soil_a
+    multiplexer: A2_GND
+    gain: 6.144
+    id: soil_l_far_adc
+    internal: true
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва L излом П — напряжение"
+    id: soil_l_far_voltage
+    object_id: pochva_l_izlom_p_napryazhenie
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_l_far_adc).has_state()) {
+        return NAN;
+      }
+      return id(soil_l_far_adc).state;
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва L излом П — влажность"
+    id: soil_l_far
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_l_far_adc).has_state()) {
+        return NAN;
+      }
+      const float v = id(soil_l_far_adc).state;
+      const float dry = id(soil_l_far_cal_dry).state;
+      const float wet = id(soil_l_far_cal_wet).state;
+      if (isnan(dry) || isnan(wet) || wet <= dry + 0.01f) {
+        return NAN;
+      }
+      float pct = (v - dry) / (wet - dry) * 100.0f;
+      if (pct < 0.0f) pct = 0.0f;
+      if (pct > 100.0f) pct = 100.0f;
+      return pct;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    update_interval: 60s
+
+  - platform: ads1115
+    ads1115_id: ads_soil_a
+    multiplexer: A3_GND
+    gain: 6.144
+    id: soil_r_near_adc
+    internal: true
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва R у входа — напряжение"
+    id: soil_r_near_voltage
+    object_id: pochva_r_u_vkhoda_napryazhenie
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_r_near_adc).has_state()) {
+        return NAN;
+      }
+      return id(soil_r_near_adc).state;
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва R у входа — влажность"
+    id: soil_r_near
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_r_near_adc).has_state()) {
+        return NAN;
+      }
+      const float v = id(soil_r_near_adc).state;
+      const float dry = id(soil_r_near_cal_dry).state;
+      const float wet = id(soil_r_near_cal_wet).state;
+      if (isnan(dry) || isnan(wet) || wet <= dry + 0.01f) {
+        return NAN;
+      }
+      float pct = (v - dry) / (wet - dry) * 100.0f;
+      if (pct < 0.0f) pct = 0.0f;
+      if (pct > 100.0f) pct = 100.0f;
+      return pct;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    update_interval: 60s
+
+  - platform: ads1115
+    ads1115_id: ads_soil_b
+    multiplexer: A0_GND
+    gain: 6.144
+    id: soil_r_mid_adc
+    internal: true
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва R середина — напряжение"
+    id: soil_r_mid_voltage
+    object_id: pochva_r_seredina_napryazhenie
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_r_mid_adc).has_state()) {
+        return NAN;
+      }
+      return id(soil_r_mid_adc).state;
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва R середина — влажность"
+    id: soil_r_mid
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_r_mid_adc).has_state()) {
+        return NAN;
+      }
+      const float v = id(soil_r_mid_adc).state;
+      const float dry = id(soil_r_mid_cal_dry).state;
+      const float wet = id(soil_r_mid_cal_wet).state;
+      if (isnan(dry) || isnan(wet) || wet <= dry + 0.01f) {
+        return NAN;
+      }
+      float pct = (v - dry) / (wet - dry) * 100.0f;
+      if (pct < 0.0f) pct = 0.0f;
+      if (pct > 100.0f) pct = 100.0f;
+      return pct;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    update_interval: 60s
+
+  - platform: ads1115
+    ads1115_id: ads_soil_b
+    multiplexer: A1_GND
+    gain: 6.144
+    id: soil_r_far_adc
+    internal: true
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва R излом П — напряжение"
+    id: soil_r_far_voltage
+    object_id: pochva_r_izlom_p_napryazhenie
+    unit_of_measurement: "V"
+    accuracy_decimals: 3
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_r_far_adc).has_state()) {
+        return NAN;
+      }
+      return id(soil_r_far_adc).state;
+    update_interval: 60s
+
+  - platform: template
+    name: "Почва R излом П — влажность"
+    id: soil_r_far
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      if (!id(soil_r_far_adc).has_state()) {
+        return NAN;
+      }
+      const float v = id(soil_r_far_adc).state;
+      const float dry = id(soil_r_far_cal_dry).state;
+      const float wet = id(soil_r_far_cal_wet).state;
+      if (isnan(dry) || isnan(wet) || wet <= dry + 0.01f) {
+        return NAN;
+      }
+      float pct = (v - dry) / (wet - dry) * 100.0f;
+      if (pct < 0.0f) pct = 0.0f;
+      if (pct > 100.0f) pct = 100.0f;
+      return pct;
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+    update_interval: 60s
+
+  - platform: template
+    name: "Теплица — средняя влажность почвы"
+    id: soil_moisture_avg
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      float sum = 0.0f;
+      int count = 0;
+      if (id(soil_l_near).has_state()) { sum += id(soil_l_near).state; count++; }
+      if (id(soil_l_mid).has_state()) { sum += id(soil_l_mid).state; count++; }
+      if (id(soil_l_far).has_state()) { sum += id(soil_l_far).state; count++; }
+      if (id(soil_r_near).has_state()) { sum += id(soil_r_near).state; count++; }
+      if (id(soil_r_mid).has_state()) { sum += id(soil_r_mid).state; count++; }
+      if (id(soil_r_far).has_state()) { sum += id(soil_r_far).state; count++; }
+      if (count == 0) {
+        return NAN;
+      }
+      return sum / count;
+    update_interval: 60s
+
+  - platform: template
+    name: "Теплица — минимальная влажность почвы"
+    id: soil_moisture_min
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    device_class: moisture
+    state_class: measurement
+    lambda: |-
+      bool have = false;
+      float min_val = 100.0f;
+      if (id(soil_l_near).has_state()) {
+        min_val = id(soil_l_near).state;
+        have = true;
+      }
+      if (id(soil_l_mid).has_state()) {
+        min_val = have ? std::min(min_val, id(soil_l_mid).state) : id(soil_l_mid).state;
+        have = true;
+      }
+      if (id(soil_l_far).has_state()) {
+        min_val = have ? std::min(min_val, id(soil_l_far).state) : id(soil_l_far).state;
+        have = true;
+      }
+      if (id(soil_r_near).has_state()) {
+        min_val = have ? std::min(min_val, id(soil_r_near).state) : id(soil_r_near).state;
+        have = true;
+      }
+      if (id(soil_r_mid).has_state()) {
+        min_val = have ? std::min(min_val, id(soil_r_mid).state) : id(soil_r_mid).state;
+        have = true;
+      }
+      if (id(soil_r_far).has_state()) {
+        min_val = have ? std::min(min_val, id(soil_r_far).state) : id(soil_r_far).state;
+        have = true;
+      }
+      if (!have) {
+        return NAN;
+      }
+      return min_val;
+    update_interval: 60s
+
 binary_sensor:
   - platform: gpio
     pin:
@@ -335,6 +708,152 @@ number:
     min_value: 0.0005
     max_value: 0.01
     step: 0.00001
+    mode: box
+
+  # Per-probe soil calibration (V at 0% / 100%). HA script greenhouse_soil_moisture_calibrate writes these.
+  - platform: template
+    name: "Почва L у входа — калиб. сухо"
+    id: soil_l_near_cal_dry
+    object_id: pochva_l_u_vkhoda_kalib_sukho
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_dry_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва L у входа — калиб. мокро"
+    id: soil_l_near_cal_wet
+    object_id: pochva_l_u_vkhoda_kalib_mokro
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_wet_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва L середина — калиб. сухо"
+    id: soil_l_mid_cal_dry
+    object_id: pochva_l_seredina_kalib_sukho
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_dry_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва L середина — калиб. мокро"
+    id: soil_l_mid_cal_wet
+    object_id: pochva_l_seredina_kalib_mokro
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_wet_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва L излом П — калиб. сухо"
+    id: soil_l_far_cal_dry
+    object_id: pochva_l_izlom_p_kalib_sukho
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_dry_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва L излом П — калиб. мокро"
+    id: soil_l_far_cal_wet
+    object_id: pochva_l_izlom_p_kalib_mokro
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_wet_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва R у входа — калиб. сухо"
+    id: soil_r_near_cal_dry
+    object_id: pochva_r_u_vkhoda_kalib_sukho
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_dry_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва R у входа — калиб. мокро"
+    id: soil_r_near_cal_wet
+    object_id: pochva_r_u_vkhoda_kalib_mokro
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_wet_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва R середина — калиб. сухо"
+    id: soil_r_mid_cal_dry
+    object_id: pochva_r_seredina_kalib_sukho
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_dry_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва R середина — калиб. мокро"
+    id: soil_r_mid_cal_wet
+    object_id: pochva_r_seredina_kalib_mokro
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_wet_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва R излом П — калиб. сухо"
+    id: soil_r_far_cal_dry
+    object_id: pochva_r_izlom_p_kalib_sukho
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_dry_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
+    mode: box
+  - platform: template
+    name: "Почва R излом П — калиб. мокро"
+    id: soil_r_far_cal_wet
+    object_id: pochva_r_izlom_p_kalib_mokro
+    optimistic: true
+    restore_value: true
+    initial_value: ${soil_cal_wet_v}
+    min_value: 0.0
+    max_value: 5.0
+    step: 0.001
+    unit_of_measurement: "V"
     mode: box
 
 switch:

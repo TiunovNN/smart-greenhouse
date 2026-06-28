@@ -168,6 +168,8 @@ flowchart TB
   E1 -->|"GPIO14 pulse"| YF2["YF-S201 · наполнение бака"]
   E1 -->|"GPIO26 Active HIGH"| R1["Реле · клапан полива"]
   E1 -->|"GPIO27 Active HIGH"| R2["Реле · клапан бака"]
+  E1 -->|"GPIO21/22 I2C"| ADS["ADS1115 ×2 · 0x48/0x49"]
+  ADS --> SOIL["Зонды почвы ×6<br/>VH400 class · FTP"]
   E1 -.->|"U.FL"| ANT1["Антенна 2.4 GHz"]
 
   R1 --> V1["Соленоид NC 12V + 1N4007"]
@@ -184,10 +186,17 @@ flowchart TB
 | GPIO14 | Pulse counter | YF‑S201 «наполнение бака» | |
 | GPIO26 | Выход реле | IN канал 1 → реле «клапан полива» | Active HIGH |
 | GPIO27 | Выход реле | IN канал 2 → реле «клапан наполнения бака» | Active HIGH |
-| GPIO21/22 | *Резерв I2C* | Не используются | |
+| GPIO21/22 | I2C SDA/SCL | ADS1115 #1 (0x48) + ADS1115 #2 (0x49) → 6 аналоговых зондов почвы | Подтяжка 4.7 kΩ; кабели SIG в FTP |
 | U.FL | Wi‑Fi | Внешняя антенна 2.4 ГГц | Вынести разъём за металл щита |
 
-**Не использовать:** GPIO6–11 (flash), GPIO34–39 (только вход, без pull-up для контактных уровней).
+**I²C на ESP32 №1 (GPIO21/22):**
+
+| Устройство | ADDR | Каналы |
+|------------|------|--------|
+| ADS1115 #1 | 0x48 (ADDR→GND) | A0–A3 → зонды L у входа, L середина, L излом П, R у входа |
+| ADS1115 #2 | 0x49 (ADDR→3.3 V) | A0–A1 → зонды R середина, R излом П (A2–A3 резерв) |
+
+**Не использовать:** GPIO6–11 (flash), GPIO34–39 (только вход, без pull-up для контактных уровней). Встроенный ADC ESP32 **не** используется для почвы — только ADS1115.
 
 ---
 
@@ -886,7 +895,7 @@ ap_fallback_password: "резервный-ap"
 
 | Устройство | Сущности (entity_id*) |
 |------------|----------------------|
-| greenhouse-watering | `sensor.greenhouse_watering_bak_temperatura_vody`, `sensor.greenhouse_watering_poliv_rashod`, `binary_sensor.greenhouse_watering_bak_verkhniy_uroven`, `binary_sensor.greenhouse_watering_bak_sredniy_uroven`, `number.greenhouse_watering_bak_obem_mezhdu_urovnyami`, `number.greenhouse_watering_bak_koeffitsient_raskhodomera_napolneniya`, `sensor.greenhouse_watering_bak_impulsy_posledney_kalibrovki`, `switch.greenhouse_watering_klapan_poliva`, `switch.greenhouse_watering_klapan_napolneniya_baka`, `sensor.greenhouse_watering_poliv_rssi` |
+| greenhouse-watering | `sensor.greenhouse_watering_bak_temperatura_vody`, `sensor.greenhouse_watering_poliv_rashod`, `sensor.greenhouse_watering_pochva_*_vlazhnost` (×6), `sensor.greenhouse_watering_pochva_*_napryazhenie` (×6), `sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy`, `sensor.greenhouse_watering_teplitsa_srednyaya_vlazhnost_pochvy`, `number.greenhouse_watering_pochva_*_kalib_sukho` / `_kalib_mokro` (×6), `binary_sensor.greenhouse_watering_bak_verkhniy_uroven`, `binary_sensor.greenhouse_watering_bak_sredniy_uroven`, `number.greenhouse_watering_bak_obem_mezhdu_urovnyami`, `number.greenhouse_watering_bak_koeffitsient_raskhodomera_napolneniya`, `sensor.greenhouse_watering_bak_impulsy_posledney_kalibrovki`, `switch.greenhouse_watering_klapan_poliva`, `switch.greenhouse_watering_klapan_napolneniya_baka`, `sensor.greenhouse_watering_poliv_rssi` |
 | greenhouse-climate | `sensor.teplitsa_vkhod_niz_temperatura`, `sensor.teplitsa_tsentr_naverkhu_temperatura`, `sensor.teplitsa_max_temperatura`, `sensor.teplitsa_srednyaya_vlazhnost`, `sensor.osveshchennost_potolok`, `cover.fortochka_1`, `cover.fortochka_2`, `text_sensor.teplitsa_zona_max_temperatury`, … |
 
 \* Точные `entity_id` зависят от версии HA; переименуйте в **Настройки → Устройства → Сущность → Имя**.
