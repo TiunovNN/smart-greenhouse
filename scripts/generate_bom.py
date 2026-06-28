@@ -314,7 +314,7 @@ BOM = [
         295,
         "RUB",
         "https://www.youbot.ru/product/tsifrovoy-datchik-temperatury-i-vlazhnosti-gy-sht31d",
-        "Центр, север, юг; I2C; док. 03 §1.4 / 04 §2.3",
+        "Вход низ, центр наверху, противоположная сторона; I2C 0x44/0x45; док. 03 §1.4.1 / 04 §2.3",
         350,
         "Youbot",
     ),

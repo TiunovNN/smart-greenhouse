@@ -38,7 +38,7 @@ smart-greenhouse/
 | Item | Convention | Example |
 |------|------------|---------|
 | ESPHome device name | kebab-case | `greenhouse-watering`, `greenhouse-climate` |
-| ESPHome internal IDs | snake_case | `valve_irrigation`, `temp_center` |
+| ESPHome internal IDs | snake_case | `valve_irrigation`, `temp_center_top`, `temp_entrance_low` |
 | HA entity prefix | Derived from device name | `greenhouse_watering_*`, climate entities from Russian friendly names |
 | Automation IDs | snake_case, prefixed | `greenhouse_irrigation_by_humidity` |
 
@@ -82,7 +82,7 @@ Automations in `homeassistant/automations/greenhouse.yaml` orchestrate ESPHome e
 | Полив по влажности | 07:00 daily | humidity, lux, irrigation valve |
 | Наполнение бака | Tank level drops | fill valve, level sensor |
 | Защита переполнения | Level high 5 s | fill valve off + notification |
-| Проветривание | Temp > 28 °C or humidity > 85% | center temp, avg humidity, vent covers |
+| Проветривание | max T > 28 °C or avg humidity > 85% | triangulation sensors, vent covers |
 | Закрыть форточки на ночь | Sunset + low lux | vent covers |
 
 Import via **Settings → Automations → Import** or include in `configuration.yaml`:

@@ -117,14 +117,14 @@ flowchart TB
   E2 -.->|"U.FL"| ANT2["Антенна 2.4 GHz"]
 
   subgraph BUS1["Шина I2C 1 · GPIO21/22"]
-    SHT_C["SHT31 центр · 0x44"]
-    SHT_N["SHT31 север · 0x45"]
+    SHT_TOP["SHT31 центр наверху · 0x44"]
+    SHT_ENT["SHT31 вход низ · 0x45"]
     BH_TOP["BH1750 верх · 0x23"]
     PCA["PCA9685 · 0x40"]
   end
 
   subgraph BUS2["Шина I2C 2 · GPIO18/19"]
-    SHT_S["SHT31 юг · 0x44"]
+    SHT_OPP["SHT31 противоположная · 0x44"]
     BH_PL["BH1750 растения · 0x5C"]
   end
 
@@ -151,8 +151,8 @@ flowchart TB
 
 | Устройство | ADDR | Зона |
 |------------|------|------|
-| SHT31 «центр» | 0x44 (ADDR→GND) | Центр теплицы |
-| SHT31 «север» | 0x45 (ADDR→3.3 V) | Северная сторона |
+| SHT31 «центр наверху» | 0x44 (ADDR→GND) | Под коньком, ~2,5–3 м |
+| SHT31 «вход низ» | 0x45 (ADDR→3.3 V) | У двери, ~1,2 м от пола |
 | BH1750 «верх» | 0x23 | Под потолком |
 | PCA9685 | 0x40 | Драйвер серво |
 
@@ -160,7 +160,7 @@ flowchart TB
 
 | Устройство | ADDR | Зона |
 |------------|------|------|
-| SHT31 «юг» | 0x44 | Южная сторона |
+| SHT31 «противоположная сторона» | 0x44 (ADDR→GND) | Дальний торец, ~1,5 м |
 | BH1750 «рабочая зона» | 0x5C (ADDR→3.3 V) | Уровень растений |
 
 ---
@@ -530,31 +530,33 @@ sensor:
     address: 0x44
     update_interval: 30s
     temperature:
-      name: "Теплица центр — температура"
-      id: temp_center
+      name: "Теплица центр наверху — температура"
+      id: temp_center_top
     humidity:
-      name: "Теплица центр — влажность"
-      id: hum_center
+      name: "Теплица центр наверху — влажность"
+      id: hum_center_top
 
   - platform: sht3xd
     i2c_id: bus_main
     address: 0x45
+    update_interval: 30s
     temperature:
-      name: "Теплица север — температура"
-      id: temp_north
+      name: "Теплица вход низ — температура"
+      id: temp_entrance_low
     humidity:
-      name: "Теплица север — влажность"
-      id: hum_north
+      name: "Теплица вход низ — влажность"
+      id: hum_entrance_low
 
   - platform: sht3xd
     i2c_id: bus_secondary
     address: 0x44
+    update_interval: 30s
     temperature:
-      name: "Теплица юг — температура"
-      id: temp_south
+      name: "Теплица противоположная сторона — температура"
+      id: temp_opposite
     humidity:
-      name: "Теплица юг — влажность"
-      id: hum_south
+      name: "Теплица противоположная сторона — влажность"
+      id: hum_opposite
 
   - platform: bh1750
     i2c_id: bus_main
@@ -575,7 +577,8 @@ sensor:
     id: temp_avg
     unit_of_measurement: "°C"
     lambda: |-
-      return (id(temp_center).state + id(temp_north).state + id(temp_south).state) / 3.0;
+      return (id(temp_entrance_low).state + id(temp_opposite).state +
+              id(temp_center_top).state) / 3.0;
     update_interval: 30s
 
   - platform: template
@@ -583,7 +586,8 @@ sensor:
     id: hum_avg
     unit_of_measurement: "%"
     lambda: |-
-      return (id(hum_center).state + id(hum_north).state + id(hum_south).state) / 3.0;
+      return (id(hum_entrance_low).state + id(hum_opposite).state +
+              id(hum_center_top).state) / 3.0;
     update_interval: 30s
 
 pca9685:
@@ -715,7 +719,7 @@ ap_fallback_password: "резервный-ap"
 | Устройство | Сущности (entity_id*) |
 |------------|----------------------|
 | greenhouse-watering | `sensor.greenhouse_watering_bak_temperatura_vody`, `sensor.greenhouse_watering_poliv_rashod`, `binary_sensor.greenhouse_watering_bak_vysokiy_uroven`, `switch.greenhouse_watering_klapan_poliva`, `switch.greenhouse_watering_klapan_napolneniya_baka`, `sensor.greenhouse_watering_poliv_rssi` |
-| greenhouse-climate | `sensor.teplitsa_tsentr_temperatura`, `sensor.teplitsa_srednyaya_vlazhnost`, `sensor.osveshchennost_potolok`, `cover.fortochka_1`, `cover.fortochka_2`, `number.okno_1_ugol`, `binary_sensor.greenhouse_climate_fortochka_1_zakryta_kontsevik`, `binary_sensor.greenhouse_climate_fortochka_1_oshibka_polozheniya`, … |
+| greenhouse-climate | `sensor.teplitsa_vkhod_niz_temperatura`, `sensor.teplitsa_tsentr_naverkhu_temperatura`, `sensor.teplitsa_max_temperatura`, `sensor.teplitsa_srednyaya_vlazhnost`, `sensor.osveshchennost_potolok`, `cover.fortochka_1`, `cover.fortochka_2`, `text_sensor.teplitsa_zona_max_temperatury`, … |
 
 \* Точные `entity_id` зависят от версии HA; переименуйте в **Настройки → Устройства → Сущность → Имя**.
 

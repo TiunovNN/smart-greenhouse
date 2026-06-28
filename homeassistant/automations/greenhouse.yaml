@@ -1,4 +1,13 @@
 # Entity IDs follow ESPHome friendly names (Russian → slug).
+# Climate triangulation (after flash — verify in Settings → Devices):
+#   sensor.teplitsa_vkhod_niz_temperatura / _vlazhnost          — zone 1, entrance bottom
+#   sensor.teplitsa_protivopolozhnaya_storona_temperatura / _vlazhnost — zone 2, opposite side
+#   sensor.teplitsa_tsentr_naverkhu_temperatura / _vlazhnost     — zone 3, center top
+#   sensor.teplitsa_srednyaya_temperatura / teplitsa_srednyaya_vlazhnost — averages
+#   sensor.teplitsa_max_temperatura / teplitsa_min_temperatura / teplitsa_razbros_temperatury
+#   sensor.teplitsa_max_vlazhnost / teplitsa_min_vlazhnost / teplitsa_razbros_vlazhnosti
+#   text_sensor.teplitsa_zona_max_temperatury / teplitsa_zona_min_temperatury — hot/cold spot labels
+# Ventilation uses max temp (any zone overheating) and avg humidity (condensation risk).
 # Climate vent limit switches (after flash — verify in Settings → Devices):
 #   binary_sensor.greenhouse_climate_fortochka_1_zakryta_kontsevik
 #   binary_sensor.greenhouse_climate_fortochka_1_otkryta_kontsevik
@@ -242,10 +251,13 @@
 
 - id: greenhouse_ventilation
   alias: "Теплица — проветривание"
+  description: >-
+    Открыть форточки при перегреве в любой зоне (max T > 28 °C, 5 мин) или высокой
+    средней влажности (> 85 %, 10 мин). Полное открытие при max T > 32 °C.
   mode: single
   triggers:
     - trigger: numeric_state
-      entity_id: sensor.teplitsa_tsentr_temperatura
+      entity_id: sensor.teplitsa_max_temperatura
       above: 28
       for: "00:05:00"
       id: high_temp
@@ -258,7 +270,7 @@
     - condition: or
       conditions:
         - condition: numeric_state
-          entity_id: sensor.teplitsa_tsentr_temperatura
+          entity_id: sensor.teplitsa_max_temperatura
           above: 28
         - condition: numeric_state
           entity_id: sensor.teplitsa_srednyaya_vlazhnost
@@ -267,7 +279,7 @@
     - choose:
         - conditions:
             - condition: numeric_state
-              entity_id: sensor.teplitsa_tsentr_temperatura
+              entity_id: sensor.teplitsa_max_temperatura
               above: 32
           sequence:
             - action: cover.set_cover_position

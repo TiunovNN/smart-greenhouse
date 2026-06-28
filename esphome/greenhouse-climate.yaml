@@ -96,36 +96,39 @@ sensor:
     id: wifi_rssi
     update_interval: 60s
 
+  # SHT31 ×3 — triangulation: entrance low, opposite side, center top (see docs/03 §1.4.1)
   - platform: sht3xd
     i2c_id: bus_main
     address: 0x44
     update_interval: 30s
     temperature:
-      name: "Теплица центр — температура"
-      id: temp_center
+      name: "Теплица центр наверху — температура"
+      id: temp_center_top
     humidity:
-      name: "Теплица центр — влажность"
-      id: hum_center
+      name: "Теплица центр наверху — влажность"
+      id: hum_center_top
 
   - platform: sht3xd
     i2c_id: bus_main
     address: 0x45
+    update_interval: 30s
     temperature:
-      name: "Теплица север — температура"
-      id: temp_north
+      name: "Теплица вход низ — температура"
+      id: temp_entrance_low
     humidity:
-      name: "Теплица север — влажность"
-      id: hum_north
+      name: "Теплица вход низ — влажность"
+      id: hum_entrance_low
 
   - platform: sht3xd
     i2c_id: bus_secondary
     address: 0x44
+    update_interval: 30s
     temperature:
-      name: "Теплица юг — температура"
-      id: temp_south
+      name: "Теплица противоположная сторона — температура"
+      id: temp_opposite
     humidity:
-      name: "Теплица юг — влажность"
-      id: hum_south
+      name: "Теплица противоположная сторона — влажность"
+      id: hum_opposite
 
   - platform: bh1750
     i2c_id: bus_main
@@ -145,16 +148,165 @@ sensor:
     name: "Теплица — средняя температура"
     id: temp_avg
     unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
     lambda: |-
-      return (id(temp_center).state + id(temp_north).state + id(temp_south).state) / 3.0;
+      if (isnan(id(temp_entrance_low).state) || isnan(id(temp_opposite).state) ||
+          isnan(id(temp_center_top).state))
+        return {};
+      return (id(temp_entrance_low).state + id(temp_opposite).state +
+              id(temp_center_top).state) / 3.0;
     update_interval: 30s
 
   - platform: template
     name: "Теплица — средняя влажность"
     id: hum_avg
     unit_of_measurement: "%"
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 0
     lambda: |-
-      return (id(hum_center).state + id(hum_north).state + id(hum_south).state) / 3.0;
+      if (isnan(id(hum_entrance_low).state) || isnan(id(hum_opposite).state) ||
+          isnan(id(hum_center_top).state))
+        return {};
+      return (id(hum_entrance_low).state + id(hum_opposite).state +
+              id(hum_center_top).state) / 3.0;
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — max температура"
+    id: temp_max
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    lambda: |-
+      if (isnan(id(temp_entrance_low).state) || isnan(id(temp_opposite).state) ||
+          isnan(id(temp_center_top).state))
+        return {};
+      return std::max({id(temp_entrance_low).state, id(temp_opposite).state,
+                       id(temp_center_top).state});
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — min температура"
+    id: temp_min
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    lambda: |-
+      if (isnan(id(temp_entrance_low).state) || isnan(id(temp_opposite).state) ||
+          isnan(id(temp_center_top).state))
+        return {};
+      return std::min({id(temp_entrance_low).state, id(temp_opposite).state,
+                       id(temp_center_top).state});
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — разброс температуры"
+    id: temp_delta
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    lambda: |-
+      if (isnan(id(temp_entrance_low).state) || isnan(id(temp_opposite).state) ||
+          isnan(id(temp_center_top).state))
+        return {};
+      const float t_max = std::max({id(temp_entrance_low).state, id(temp_opposite).state,
+                                  id(temp_center_top).state});
+      const float t_min = std::min({id(temp_entrance_low).state, id(temp_opposite).state,
+                                  id(temp_center_top).state});
+      return t_max - t_min;
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — max влажность"
+    id: hum_max
+    unit_of_measurement: "%"
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 0
+    lambda: |-
+      if (isnan(id(hum_entrance_low).state) || isnan(id(hum_opposite).state) ||
+          isnan(id(hum_center_top).state))
+        return {};
+      return std::max({id(hum_entrance_low).state, id(hum_opposite).state,
+                       id(hum_center_top).state});
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — min влажность"
+    id: hum_min
+    unit_of_measurement: "%"
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 0
+    lambda: |-
+      if (isnan(id(hum_entrance_low).state) || isnan(id(hum_opposite).state) ||
+          isnan(id(hum_center_top).state))
+        return {};
+      return std::min({id(hum_entrance_low).state, id(hum_opposite).state,
+                       id(hum_center_top).state});
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — разброс влажности"
+    id: hum_delta
+    unit_of_measurement: "%"
+    device_class: humidity
+    state_class: measurement
+    accuracy_decimals: 0
+    lambda: |-
+      if (isnan(id(hum_entrance_low).state) || isnan(id(hum_opposite).state) ||
+          isnan(id(hum_center_top).state))
+        return {};
+      const float h_max = std::max({id(hum_entrance_low).state, id(hum_opposite).state,
+                                    id(hum_center_top).state});
+      const float h_min = std::min({id(hum_entrance_low).state, id(hum_opposite).state,
+                                    id(hum_center_top).state});
+      return h_max - h_min;
+    update_interval: 30s
+
+text_sensor:
+  - platform: template
+    name: "Теплица — зона max температуры"
+    id: temp_hot_spot
+    icon: "mdi:thermometer-high"
+    lambda: |-
+      if (isnan(id(temp_entrance_low).state) || isnan(id(temp_opposite).state) ||
+          isnan(id(temp_center_top).state))
+        return {};
+      const float t_ent = id(temp_entrance_low).state;
+      const float t_opp = id(temp_opposite).state;
+      const float t_top = id(temp_center_top).state;
+      const float t_max = std::max({t_ent, t_opp, t_top});
+      if (t_top >= t_max - 0.05f)
+        return {"Центр наверху"};
+      if (t_ent >= t_opp)
+        return {"Вход низ"};
+      return {"Противоположная сторона"};
+    update_interval: 30s
+
+  - platform: template
+    name: "Теплица — зона min температуры"
+    id: temp_cold_spot
+    icon: "mdi:thermometer-low"
+    lambda: |-
+      if (isnan(id(temp_entrance_low).state) || isnan(id(temp_opposite).state) ||
+          isnan(id(temp_center_top).state))
+        return {};
+      const float t_ent = id(temp_entrance_low).state;
+      const float t_opp = id(temp_opposite).state;
+      const float t_top = id(temp_center_top).state;
+      const float t_min = std::min({t_ent, t_opp, t_top});
+      if (t_top <= t_min + 0.05f)
+        return {"Центр наверху"};
+      if (t_ent <= t_opp)
+        return {"Вход низ"};
+      return {"Противоположная сторона"};
     update_interval: 30s
 
 binary_sensor:

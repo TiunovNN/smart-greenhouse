@@ -169,14 +169,17 @@ action:
       message: "Клапан наполнения принудительно закрыт."
 ```
 
-**4. Проветривание по температуре и влажности**
+**4. Проветривание по температуре и влажности (триангуляция)**
+
+Стратегия: **max T** по трём зонам SHT31 — перегрев в любой точке открывает форточки; **средняя RH** — риск конденсата. Полное открытие при max T > 32 °C.
 
 ```yaml
 alias: "Теплица — проветривание"
+description: "max T > 28 °C или средняя RH > 85%; полное открытие при max T > 32 °C"
 mode: single
 trigger:
   - platform: numeric_state
-    entity_id: sensor.teplitsa_tsentr_temperatura
+    entity_id: sensor.teplitsa_max_temperatura
     above: 28
     for: "00:05:00"
   - platform: numeric_state
@@ -187,7 +190,7 @@ condition:
   - condition: or
     conditions:
       - condition: numeric_state
-        entity_id: sensor.teplitsa_tsentr_temperatura
+        entity_id: sensor.teplitsa_max_temperatura
         above: 28
       - condition: numeric_state
         entity_id: sensor.teplitsa_srednyaya_vlazhnost
@@ -196,7 +199,7 @@ action:
   - choose:
       - conditions:
           - condition: numeric_state
-            entity_id: sensor.teplitsa_tsentr_temperatura
+            entity_id: sensor.teplitsa_max_temperatura
             above: 32
         sequence:
           - service: cover.set_cover_position
