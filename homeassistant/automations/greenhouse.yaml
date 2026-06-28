@@ -1,4 +1,11 @@
 # Entity IDs follow ESPHome friendly names (Russian → slug).
+#
+# Seasonal operation (central Russia): IP65 cabinet mounted and powered ~May–Sep only.
+# Winter (~Oct–Apr): cabinet removed/stored indoors; ESP32 offline → entities unavailable;
+# automations below do not actuate hardware until remount. Manual taps/valves on site if needed.
+# Optional: add input_boolean.greenhouse_season_active + condition: state "on" on each automation.
+# See docs/03-greenhouse-installation.md §0.1, docs/01-overview.md §5.4.
+#
 # Climate triangulation (after flash — verify in Settings → Devices):
 #   sensor.teplitsa_vkhod_niz_temperatura / _vlazhnost          — zone 1, entrance bottom
 #   sensor.teplitsa_protivopolozhnaya_storona_temperatura / _vlazhnost — zone 2, opposite side
@@ -7,7 +14,8 @@
 #   sensor.teplitsa_max_temperatura / teplitsa_min_temperatura / teplitsa_razbros_temperatury
 #   sensor.teplitsa_max_vlazhnost / teplitsa_min_vlazhnost / teplitsa_razbros_vlazhnosti
 #   text_sensor.teplitsa_zona_max_temperatury / teplitsa_zona_min_temperatury — hot/cold spot labels
-# Ventilation uses max temp (any zone overheating) and avg humidity (condensation risk).
+# Ventilation uses max temp (any zone overheating) and avg humidity (upper-band / stagnation).
+# Greenhouse interior RH is typically 70–95%; vent_humidity_max is not "low RH" semantics.
 # Climate vent limit switches (after flash — verify in Settings → Devices):
 #   binary_sensor.greenhouse_climate_fortochka_1_zakryta_kontsevik
 #   binary_sensor.greenhouse_climate_fortochka_1_otkryta_kontsevik
@@ -29,7 +37,7 @@
 # Helpers: input_select.greenhouse_plant_profile, input_number.* (input_select.yaml, input_number.yaml)
 # Profile defaults: homeassistant/plant_profiles.yaml — applied by greenhouse_apply_plant_profile
 # Prefer number.greenhouse_watering_poliv_tselevoy_obem on device; input_number is a dashboard fallback.
-# Irrigation uses avg air RH (SHT31) as proxy for soil moisture — no soil sensor in hardware yet.
+# Irrigation uses avg air RH (SHT31) as relative soil-moisture proxy — GH baseline 70–95%, not room air.
 
 - id: greenhouse_apply_plant_profile
   alias: "Теплица — применить профиль культуры"

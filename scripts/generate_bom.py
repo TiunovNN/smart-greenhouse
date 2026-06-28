@@ -129,7 +129,7 @@ BOM = [
         0,
         "",
     ),
-    # 1.3 Щит IP65 у теплицы
+    # 1.3 Щит IP65 снаружи у входа (не внутри теплицы)
     (
         "Щит IP65 у теплицы",
         "ESP32-DevKitC ESP32-WROOM-32U (U.FL)",
@@ -214,7 +214,7 @@ BOM = [
         4458,
         "RUB",
         "https://electroprice.ru/product/shkaf-st-s-montazh--platoy-300h400h200mm-ot-ip65-do-ip66-ik10-dkc-r5st0342/117349",
-        "Полевой щит у теплицы; док. 04 §1.3; DKC R5ST0342 с монтажной платой",
+        "Полевой щит снаружи у входа теплицы (не внутри RH 70–95%); док. 04 §1.3 / 03 §0; DKC R5ST0342 с монтажной платой",
         5500,
         "Electroprice",
     ),
@@ -236,7 +236,7 @@ BOM = [
         2200,
         "RUB",
         "https://www.ozon.ru/search/?text=Extralink+Cat5e+FTP+outdoor+50m",
-        "Линии датчиков внутрь теплицы; док. 04 §1.3/04 §2.5; Extralink EX.32341 или аналог DKC outdoor FTP",
+        "Из щита снаружи в теплицу (датчики, GPIO); doc. 04 §1.3/04 §2.5; Extralink EX.32341 или аналог DKC outdoor FTP",
         2800,
         "Ozon",
     ),
@@ -258,7 +258,7 @@ BOM = [
         450,
         "RUB",
         "https://www.ozon.ru/search/?text=Gore+vent+IP67+электрощит",
-        "Антиконденсат в корпусе; док. 04 §1.3/01 §5.1; вентиляционный винт IP67 (аналог Gore vent)",
+        "Антиконденсат: щит снаружи у влажного входа; док. 04 §1.3/01 §5.1; вентиляционный винт IP67 (аналог Gore vent)",
         700,
         "Ozon",
     ),
@@ -396,6 +396,73 @@ BOM = [
         1500,
         "Lemana PRO",
     ),
+    # 1.7 Computer vision (optional — Phase 0, not in base ~52k)
+    (
+        "Computer vision (optional)",
+        "PoE IP camera 5 MP IP66/IP67 (Reolink RLC-410 or analog)",
+        2,
+        7500,
+        "RUB",
+        "https://www.ozon.ru/search/?text=Reolink+RLC-410+PoE",
+        "CV‑1 коридор у входа + CV‑2 излом П; RTSP; док. 05 §3 / 03 §1.4.2; не в базовом BOM",
+        9000,
+        "Ozon",
+    ),
+    (
+        "Computer vision (optional)",
+        "Outdoor Cat6 to greenhouse (cameras, if no spare)",
+        1,
+        2500,
+        "RUB",
+        "https://www.chipdip.ru/search?searchtext=кабель+Cat6+наружный",
+        "30–40 m к PoE‑коммутатору; shared conduit с ESP32 или отдельная трасса; док. 05 §3.4",
+        3200,
+        "Chipdip",
+    ),
+    (
+        "Computer vision (optional)",
+        "GORE vent + drip loop kit for cameras (×2)",
+        1,
+        1000,
+        "RUB",
+        "https://www.ozon.ru/search/?text=Gore+vent+IP67+камера",
+        "Антиконденсат на корпусе; doc. 05 §3.3",
+        1600,
+        "Ozon",
+    ),
+    (
+        "Computer vision (optional)",
+        "Radxa ZERO 3W 1GB RAM / 8GB eMMC (edge CV host)",
+        1,
+        3790,
+        "RUB",
+        "https://onpad.ru/catalog/cubie/radxa/rock/radxa_zero_series/3542.html",
+        "greenhouse-cv-edge · .13 · RTSP + ONNX; doc. 05 §3.4 / 04 §1.4; не ESP32",
+        4200,
+        "onpad.ru",
+    ),
+    (
+        "Computer vision (optional)",
+        "USB-C buck 5V 3A (edge SBC power from LRS-50-5)",
+        1,
+        450,
+        "RUB",
+        "https://www.chipdip.ru/search?searchtext=USB-C+5V+3A+buck",
+        "Питание edge SBC от щита; doc. 04 §2.5 / 05 §3.4",
+        600,
+        "Chipdip",
+    ),
+    (
+        "Computer vision (optional)",
+        "microSD 32GB (edge SBC backup, optional with eMMC)",
+        1,
+        500,
+        "RUB",
+        "https://www.ozon.ru/search/?text=microSD+32GB+Class10",
+        "Резервная загрузка Radxa; doc. 05 §3.4 — опционально при 8GB eMMC",
+        700,
+        "Ozon",
+    ),
     # 1.6 Монтаж и запас
     (
         "Монтаж и запас",
@@ -404,7 +471,7 @@ BOM = [
         3000,
         "RUB",
         "https://www.chipdip.ru/search?searchtext=кабельные+стяжки+наконечник",
-        "Док. 02 §1.6 сбалансированная строка бюджета (~10% запас); уменьшено после экономии на компонентах",
+        "Док. 02 §1.6; incl. silica gel 50–100 g для щита снаружи (doc. 04 §1.3); ~10% запас",
         3500,
         "Chipdip + Ozon",
     ),
@@ -508,7 +575,7 @@ def write_xlsx(rows):
     meta["A1"] = "Спецификация умной теплицы (BOM)"
     meta["A1"].font = Font(bold=True, size=14)
     meta["A3"] = "Источник"
-    meta["B3"] = "docs/02-components-and-server.md, 03-greenhouse-installation.md, 04-esp32-and-cabinet.md (§1.1–1.6); index: smart-greenhouse-design.md"
+    meta["B3"] = "docs/02-components-and-server.md, 03-greenhouse-installation.md, 04-esp32-and-cabinet.md (§1.1–1.6), 05-computer-vision.md (optional CV); index: smart-greenhouse-design.md"
     meta["A4"] = "Сгенерировано"
     meta["B4"] = "scripts/generate_bom.py"
     meta["A5"] = "Основа цен"

@@ -27,6 +27,7 @@ greenhouse_irrigation_humidity_min:
   icon: mdi:water-percent
   initial: 68
   mode: box
+  # GH interior RH typically 70–95%; threshold = relative drop proxy for soil drying
 
 greenhouse_vent_temp_open:
   name: "Теплица — проветривание при max T выше"
@@ -57,6 +58,7 @@ greenhouse_vent_humidity_max:
   icon: mdi:air-humidifier
   initial: 82
   mode: box
+  # Upper-band trigger in 70–95% GH range; not "low humidity" semantics
 
 # Placeholder until a soil moisture sensor is wired (see docs/01-overview.md §4.6).
 # Not used by automations today — irrigation uses average air RH from SHT31 as proxy.

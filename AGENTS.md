@@ -4,7 +4,7 @@ Guide for AI agents and contributors working on this repository.
 
 ## Project purpose
 
-Smart greenhouse automation built on **Home Assistant** (logic, automations, dashboard) and **ESPHome** (two ESP32 nodes: watering/tank and climate/windows). The full hardware design, wiring, and rationale are in [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (index, Russian) and four linked docs: [01-overview](docs/01-overview.md), [02-components-and-server](docs/02-components-and-server.md), [03-greenhouse-installation](docs/03-greenhouse-installation.md), [04-esp32-and-cabinet](docs/04-esp32-and-cabinet.md).
+Smart greenhouse automation built on **Home Assistant** (logic, automations, dashboard) and **ESPHome** (two ESP32 nodes: watering/tank and climate/windows). Controllers live in an **IP65 cabinet mounted outside at the greenhouse entrance** (not inside the humid interior) **during the growing season (~May–September, central Russia)**; **in winter the cabinet is powered off, removed from its mount, and stored dry indoors** ([docs/03-greenhouse-installation.md §0.1](docs/03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита)). Sensors, actuators, and optional PoE cameras remain **inside** the greenhouse (typical RH **70–95%**). ESP32/edge automations are inactive while the cabinet is stored; HA may show unavailable entities. The full hardware design, wiring, and rationale are in [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (index, Russian) and five linked docs: [01-overview](docs/01-overview.md), [02-components-and-server](docs/02-components-and-server.md), [03-greenhouse-installation](docs/03-greenhouse-installation.md), [04-esp32-and-cabinet](docs/04-esp32-and-cabinet.md), [05-computer-vision](docs/05-computer-vision.md) (optional CV design — not in base BOM).
 
 ## Repository layout
 
@@ -15,7 +15,8 @@ smart-greenhouse/
 │   ├── 01-overview.md               # Architecture, network, automations, ops, security
 │   ├── 02-components-and-server.md  # BOM, HA server, Mesh hardware
 │   ├── 03-greenhouse-installation.md # Sensors, actuators, hydraulic layout
-│   └── 04-esp32-and-cabinet.md      # Cabinet, GPIO, ESPHome, entity IDs
+│   ├── 04-esp32-and-cabinet.md      # Cabinet, GPIO, ESPHome, entity IDs
+│   └── 05-computer-vision.md        # Optional: cameras, cloud CV (design only)
 ├── esphome/
 │   ├── greenhouse-watering.yaml     # ESP32 #1 — irrigation, tank, flow meters
 │   ├── greenhouse-climate.yaml      # ESP32 #2 — climate sensors, vent windows
@@ -23,7 +24,8 @@ smart-greenhouse/
 │   └── secrets.yaml                 # Local credentials — NEVER commit
 ├── homeassistant/
 │   ├── automations/
-│   │   └── greenhouse.yaml          # HA automations referencing ESPHome entities
+│   │   ├── greenhouse.yaml          # HA automations referencing ESPHome entities
+│   │   └── greenhouse_cv.yaml.example  # Optional CV capture/analyze (not active by default)
 │   ├── input_select.yaml            # Plant profile selector (include in configuration.yaml)
 │   ├── input_number.yaml            # Setpoints — irrigation, vent thresholds (include in configuration.yaml)
 │   └── plant_profiles.yaml          # Profile default values (reference; applied by automation)
@@ -75,7 +77,7 @@ esphome run greenhouse-climate.yaml
 # Subsequent updates: esphome run ... or OTA from ESPHome dashboard
 ```
 
-Static IPs: watering `192.168.30.11`, climate `192.168.30.12` on IoT VLAN (see [01-overview.md](docs/01-overview.md) §3).
+Static IPs: watering `192.168.30.11`, climate `192.168.30.12`, optional CV edge SBC `192.168.30.13` on IoT VLAN (see [01-overview.md](docs/01-overview.md) §3, [02 §1.7](docs/02-components-and-server.md)).
 
 ## Home Assistant automations
 
@@ -90,7 +92,11 @@ Automations in `homeassistant/automations/greenhouse.yaml` orchestrate ESPHome e
 | Проветривание | max T or avg RH above profile setpoints | triangulation sensors, vent covers |
 | Закрыть форточки на ночь | Sunset + low lux | vent covers |
 
-Profile helpers (`input_select.greenhouse_plant_profile`, `input_number.greenhouse_*`): include `input_select.yaml` and `input_number.yaml` in `configuration.yaml`. Defaults target **central Russia** (peak season); seasonal manual tweaks — `plant_profiles.yaml` `seasonal_notes` and `docs/01-overview.md` §4.6. Irrigation uses **average air humidity** as soil moisture proxy — no soil sensor in current hardware.
+**Seasonal:** cabinet removed ~Oct–Apr; ESP32 offline → greenhouse automations do not actuate hardware; entities may show unavailable ([03 §0.1](docs/03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита), [01 §5.4](docs/01-overview.md#54-сезонная-эксплуатация)). Comment in `greenhouse.yaml` notes optional `input_boolean.greenhouse_season_active` gate (not implemented by default).
+
+Optional computer vision (design in [05-computer-vision.md](docs/05-computer-vision.md)): 2× PoE IP cameras for **П‑layout** beds **inside** the greenhouse; **Radxa ZERO 3W edge SBC** (`192.168.30.13`) in the **outdoor IP65 cabinet** at the entrance for RTSP capture and optional local HF/ONNX inference; snapshots **07:00 + sunset−45m** gated by BH1750 lux; upload to **Yandex Object Storage** + **Yandex AI Studio** (Foundation Models) for heavy analysis; **MQTT/API** results to Home Assistant on Pi 5; alerts coupled to vent/irrigation — see `greenhouse_cv.yaml.example` and `scripts/capture_and_analyze.sh` (stubs, deploy on edge not Pi by default).
+
+Profile helpers (`input_select.greenhouse_plant_profile`, `input_number.greenhouse_*`): include `input_select.yaml` and `input_number.yaml` in `configuration.yaml`. Defaults target **central Russia** (peak season); seasonal manual tweaks — `plant_profiles.yaml` `seasonal_notes` and `docs/01-overview.md` §4.6. Greenhouse interior RH is typically **70–95%**; `vent_humidity_max` triggers vent at the **upper** band, not because 70% is “low”. Irrigation uses **average air humidity** as a **relative** soil-moisture proxy (drop below profile threshold from the GH baseline) — no soil sensor in current hardware.
 
 Import via **Settings → Automations → Import** or include in `configuration.yaml`:
 

@@ -11,29 +11,31 @@
 # logic to greenhouse_soil_moisture_min and entity sensor.greenhouse_*_vlazhnost_pochvy.
 #
 # Base values target peak season (June–August) in an unheated hobby greenhouse
-# in central Russia (Moscow / Vladimir / Yaroslavl belt). Shoulder-season tweaks
-# are manual — see plant_profiles.yaml seasonal_notes and docs/01-overview.md §4.6.
+# in central Russia (Moscow / Vladimir / Yaroslavl belt). Interior RH is typically
+# 70–95% — not room-like 40–60%. vent_humidity_max is the UPPER-band vent trigger;
+# irrigation_humidity_min is a relative drop proxy, not "dry room air".
+# Shoulder-season tweaks are manual — see seasonal_notes below and docs/01-overview.md §4.6.
 
 profiles:
   cucumbers:
     label: "Огурцы"
     # Peak-season base; May: raise humidity_min +5–8 %, reduce volume ~30 %
-    irrigation_humidity_min: 68   # % RH — irrigate when avg air RH drops below
+    irrigation_humidity_min: 68   # % avg RH — irrigate when below (GH baseline 70–95%)
     irrigation_volume: 6            # L per cycle (Jul heat: up to 8 L)
     # Greenhouse adds ~8–15 °C vs outdoor on sunny days; vent before 35 °C stress
     vent_temp_open: 26              # °C max zone temp — partial vent (40%)
     vent_temp_full: 30              # °C — full vent (100%)
-    vent_humidity_max: 82           # % avg RH — vent for condensation (autumn)
+    vent_humidity_max: 82           # % avg RH — vent at upper band / stagnation (not "high for a room")
     soil_moisture_min: 60           # placeholder only
     min_night_temp_alert: 14        # °C — doc reference only (no automation yet)
   tomatoes:
     label: "Помидоры"
-    irrigation_humidity_min: 58
+    irrigation_humidity_min: 58     # relative proxy; still within normal GH RH range when not irrigating
     irrigation_volume: 4.5
     # Vent earlier: fungal risk on humid cool nights (May, Sept) in continental climate
     vent_temp_open: 24
     vent_temp_full: 28
-    vent_humidity_max: 70           # lower — vent earlier to reduce fungal risk
+    vent_humidity_max: 70           # lower — vent earlier (tomato fungal risk; GH RH often 70–95%)
     soil_moisture_min: 55
     min_night_temp_alert: 12        # °C — doc reference only
 

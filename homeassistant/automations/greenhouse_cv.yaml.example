@@ -1,0 +1,242 @@
+# Example only — NOT included in configuration.yaml by default.
+# Copy patterns into greenhouse.yaml or rename after cameras are paired.
+#
+# Requires:
+#   camera.greenhouse_cv_entrance, camera.greenhouse_cv_far (Reolink/RTSP)
+#   sensor.osveshchennost_potolok (BH1750 ceiling — greenhouse-climate)
+#   sensor.teplitsa_srednyaya_vlazhnost, cover.fortochka_1, cover.fortochka_2
+# Helpers: input_text.greenhouse_cv_last_report, input_datetime.greenhouse_cv_last_success
+# Template sensor: sensor.greenhouse_cv_health (parse input_text JSON)
+#
+# Secrets (secrets.yaml): yandex_cloud_api_key, yandex_s3_access_key, yandex_s3_secret_key
+# shell_command.greenhouse_cv_analyze_latest → scripts/capture_and_analyze.sh
+
+- id: greenhouse_cv_capture_morning
+  alias: "Теплица CV — утренний снимок 07:00"
+  description: >-
+    Snapshot обеих камер при достаточной освещённости (BH1750 потолок).
+    Загрузка в Yandex Object Storage — через shell_command после capture.
+  mode: single
+  triggers:
+    - trigger: time
+      at: "07:00:00"
+  conditions:
+    - condition: numeric_state
+      entity_id: sensor.osveshchennost_potolok
+      above: 300
+    - condition: template
+      value_template: "{{ state_attr('sun.sun', 'elevation') | float(-90) > 5 }}"
+  actions:
+    - variables:
+        stamp: "{{ now().strftime('%Y-%m-%d_%H%M') }}"
+        session: am
+    - action: camera.snapshot
+      target:
+        entity_id:
+          - camera.greenhouse_cv_entrance
+          - camera.greenhouse_cv_far
+      data:
+        filename: "/config/greenhouse_cv/{{ stamp }}_{{ session }}_{{ entity_id | replace('camera.', '') }}.jpg"
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.greenhouse_cv_last_success
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+- id: greenhouse_cv_capture_evening
+  alias: "Теплица CV — вечерний снимок (sunset − 45 min)"
+  description: >-
+    Время съёмки привязано к фотопериоду, не к фиксированным 18:00.
+    Порог lux ниже утреннего — сумерки, но до заката.
+  mode: single
+  triggers:
+    - trigger: sun
+      event: sunset
+      offset: "-00:45:00"
+  conditions:
+    - condition: numeric_state
+      entity_id: sensor.osveshchennost_potolok
+      above: 150
+    - condition: template
+      value_template: "{{ state_attr('sun.sun', 'elevation') | float(-90) > 0 }}"
+  actions:
+    - variables:
+        stamp: "{{ now().strftime('%Y-%m-%d_%H%M') }}"
+        session: pm
+    - action: camera.snapshot
+      target:
+        entity_id:
+          - camera.greenhouse_cv_entrance
+          - camera.greenhouse_cv_far
+      data:
+        filename: "/config/greenhouse_cv/{{ stamp }}_{{ session }}_{{ entity_id | replace('camera.', '') }}.jpg"
+    - action: input_datetime.set_datetime
+      target:
+        entity_id: input_datetime.greenhouse_cv_last_success
+      data:
+        datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+- id: greenhouse_cv_skip_dark_morning
+  alias: "Теплица CV — пропуск утра (мало света)"
+  mode: single
+  triggers:
+    - trigger: time
+      at: "07:00:05"
+  conditions:
+    - condition: numeric_state
+      entity_id: sensor.osveshchennost_potolok
+      below: 300
+  actions:
+    - action: input_text.set_value
+      target:
+        entity_id: input_text.greenhouse_cv_last_report
+      data:
+        value: >-
+          {"health":"skipped_dark","session":"am","lux":{{ states('sensor.osveshchennost_potolok') | float(0) }},
+          "sun_elevation":{{ state_attr('sun.sun', 'elevation') | float(0) }},
+          "note":"lux below morning threshold; no Yandex upload"}
+
+- id: greenhouse_cv_skip_dark_evening
+  alias: "Теплица CV — пропуск вечера (мало света)"
+  mode: single
+  triggers:
+    - trigger: sun
+      event: sunset
+      offset: "-00:44:00"
+  conditions:
+    - condition: numeric_state
+      entity_id: sensor.osveshchennost_potolok
+      below: 150
+  actions:
+    - action: input_text.set_value
+      target:
+        entity_id: input_text.greenhouse_cv_last_report
+      data:
+        value: >-
+          {"health":"skipped_dark","session":"pm","lux":{{ states('sensor.osveshchennost_potolok') | float(0) }},
+          "sun_elevation":{{ state_attr('sun.sun', 'elevation') | float(0) }},
+          "note":"lux below evening threshold; no Yandex upload"}
+
+- id: greenhouse_cv_run_analysis
+  alias: "Теплица CV — upload S3 + YandexGPT (stub)"
+  description: >-
+    Вызывает scripts/capture_and_analyze.sh: Object Storage PUT + Foundation Models API.
+    Enable after Yandex Cloud service account is configured.
+  mode: single
+  triggers:
+    - trigger: time
+      at: "07:08:00"
+    - trigger: sun
+      event: sunset
+      offset: "-00:37:00"
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ states('input_text.greenhouse_cv_last_report') != '' and
+           'skipped_dark' not in states('input_text.greenhouse_cv_last_report') }}
+  actions:
+    - action: shell_command.greenhouse_cv_analyze_latest
+      continue_on_error: true
+    - action: notify.persistent_notification
+      data:
+        title: "Теплица CV — анализ завершён"
+        message: "{{ states('input_text.greenhouse_cv_last_report')[:500] }}"
+
+- id: greenhouse_cv_alert_diseased
+  alias: "Теплица CV — алерт при болезни"
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: sensor.greenhouse_cv_health
+      to: "diseased"
+  conditions:
+    - condition: template
+      value_template: >-
+        {{ states('input_text.greenhouse_cv_last_report') | from_json(default={}).get('max_confidence', 0) | float(0) > 0.75 }}
+  actions:
+    - action: notify.persistent_notification
+      data:
+        title: "Теплица — возможная проблема (CV)"
+        message: >-
+          Профиль: {{ states('input_select.greenhouse_plant_profile') }}.
+          Проверьте растения. {{ states('input_text.greenhouse_cv_last_report')[:400] }}
+
+- id: greenhouse_cv_mildew_vent_boost
+  alias: "Теплица CV — мучнистая роса + высокая RH → проветривание"
+  description: >-
+    Связка CV с форточками: при mildew/downy_mildew в отчёте и RH выше профиля
+    — частичное открытие cover.fortochka_1/2. Требует двойного подтверждения (Phase 3).
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: sensor.greenhouse_cv_health
+      to: "diseased"
+    - trigger: state
+      entity_id: sensor.greenhouse_cv_health
+      to: "stressed"
+  conditions:
+    - condition: template
+      value_template: >-
+        {% set report = states('input_text.greenhouse_cv_last_report') | from_json(default={}) %}
+        {% set issues = report.get('likely_issues', []) | join(' ') %}
+        {{ 'powdery_mildew' in issues or 'downy_mildew' in issues or 'mildew' in issues }}
+    - condition: template
+      value_template: >-
+        {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(0) >=
+           states('input_number.greenhouse_vent_humidity_max') | float(70) - 5 }}
+    - condition: template
+      value_template: >-
+        {{ states('input_text.greenhouse_cv_last_report') | from_json(default={}).get('max_confidence', 0) | float(0) > 0.65 }}
+  actions:
+    - action: cover.set_cover_position
+      target:
+        entity_id:
+          - cover.fortochka_1
+          - cover.fortochka_2
+      data:
+        position: 70
+    - action: notify.persistent_notification
+      data:
+        title: "Теплица CV — проветривание (mildew + RH)"
+        message: >-
+          CV: возможная грибковая роса (mildew).
+          RH {{ states('sensor.teplitsa_srednyaya_vlazhnost') }}%.
+          Форточки ~70 %. {{ states('input_text.greenhouse_cv_last_report')[:300] }}
+
+- id: greenhouse_cv_water_stress_irrigation_hint
+  alias: "Теплица CV — водный стресс → подсказка полива"
+  description: >-
+    Уведомление и подготовка целевого объёма; автоматический полив НЕ включается
+    (конфликт с greenhouse_irrigation_by_humidity). Оператор решает вручную.
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: sensor.greenhouse_cv_health
+      to: "stressed"
+  conditions:
+    - condition: template
+      value_template: >-
+        {% set report = states('input_text.greenhouse_cv_last_report') | from_json(default={}) %}
+        {% set issues = report.get('likely_issues', []) | join(' ') %}
+        {{ 'water_stress' in issues or 'wilting' in issues or report.get('health') == 'stressed' }}
+    - condition: template
+      value_template: >-
+        {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(100) <
+           states('input_number.greenhouse_irrigation_humidity_min') | float(55) + 10 }}
+    - condition: state
+      entity_id: switch.greenhouse_watering_klapan_poliva
+      state: "off"
+  actions:
+    - action: number.set_value
+      target:
+        entity_id: number.greenhouse_watering_poliv_tselevoy_obem
+      data:
+        value: "{{ states('input_number.greenhouse_irrigation_volume') | float(5) }}"
+    - action: notify.persistent_notification
+      data:
+        title: "Теплица CV — возможен водный стресс"
+        message: >-
+          CV: признаки dehydration/wilting при RH {{ states('sensor.teplitsa_srednyaya_vlazhnost') }}%.
+          Целевой объём полива подготовлен ({{ states('input_number.greenhouse_irrigation_volume') }} L).
+          Запустите полив вручную при необходимости.
+          {{ states('input_text.greenhouse_cv_last_report')[:250] }}

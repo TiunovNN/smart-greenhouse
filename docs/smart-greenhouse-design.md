@@ -1,6 +1,6 @@
 # Проектирование системы умной теплицы на Home Assistant
 
-> **Оглавление.** Полное описание системы разбито на четыре документа. Этот файл сохранён для обратной совместимости со ссылками из репозитория.
+> **Оглавление.** Полное описание системы разбито на пять документов. Этот файл сохранён для обратной совместимости со ссылками из репозитория.
 
 | № | Документ | Содержание |
 |---|----------|------------|
@@ -8,6 +8,7 @@
 | 2 | [02-components-and-server.md](02-components-and-server.md) | Подбор компонентов (BOM), сервер HA, сеть Mesh, сводная стоимость |
 | 3 | [03-greenhouse-installation.md](03-greenhouse-installation.md) | Датчики, исполнительные устройства, гидравлическая схема полива и бака |
 | 4 | [04-esp32-and-cabinet.md](04-esp32-and-cabinet.md) | Щит IP65, GPIO, ESPHome, прошивка, сущности HA |
+| 5 | [05-computer-vision.md](05-computer-vision.md) | Камеры **внутри** (П‑layout), **edge SBC в щите снаружи**, Yandex Object Storage + AI Studio, HF ONNX, MQTT → HA |
 
 ## Быстрая навигация по разделам (бывшая нумерация)
 
@@ -15,8 +16,9 @@
 |----------|----------------|--------|
 | §1.1–§1.2, §1.6 | [02-components-and-server.md](02-components-and-server.md) | Сервер, Mesh, бюджет |
 | §1.3, §2.1–§2.5, §4.1–§4.4 | [04-esp32-and-cabinet.md](04-esp32-and-cabinet.md) | Щит, GPIO, ESPHome |
-| §1.4–§1.5, §2.6 | [03-greenhouse-installation.md](03-greenhouse-installation.md) | Датчики, клапаны, гидравлика |
-| §3, §4.5, §5, §6 | [01-overview.md](01-overview.md) | Сеть, автоматизации, эксплуатация |
+| §1.4–§1.5, §2.6 | [03-greenhouse-installation.md](03-greenhouse-installation.md) | Датчики, **П‑layout грядок**, камеры CV, клапаны, гидравлика |
+| §3, §4.5, §5, §6 | [01-overview.md](01-overview.md) | Сеть, automations, эксплуатация |
+| CV (камеры, облако) | [05-computer-vision.md](05-computer-vision.md) | Дизайн computer vision, не в базовом BOM |
 
 **Соглашения об именовании:** ESP32 №1 — `greenhouse-watering`, №2 — `greenhouse-climate`; префикс сущностей HA — `greenhouse_*`.
 
