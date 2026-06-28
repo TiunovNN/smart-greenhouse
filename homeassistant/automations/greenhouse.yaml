@@ -1,82 +1,209 @@
+# Entity IDs follow ESPHome friendly names (Russian → slug).
+# New watering entities (after flash):
+#   sensor.greenhouse_watering_poliv_obem_za_tsikl
+#   sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl
+#   binary_sensor.greenhouse_watering_poliv_net_potoka
+#   binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
+#   binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
+#   number.greenhouse_watering_poliv_tselevoy_obem
+#
+# Helpers: homeassistant/input_number.yaml
+# Prefer number.greenhouse_watering_poliv_tselevoy_obem on device; input_number is a dashboard fallback.
+
 - id: greenhouse_irrigation_by_humidity
   alias: "Теплица — полив по влажности"
-  description: "Полив 5 мин если средняя влажность < 55% и светло"
+  description: "Полив до целевого объёма если средняя влажность < 55% и светло"
   mode: single
-  trigger:
-    - platform: time
+  triggers:
+    - trigger: time
       at: "07:00:00"
-  condition:
+  conditions:
     - condition: numeric_state
       entity_id: sensor.teplitsa_srednyaya_vlazhnost
       below: 55
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       above: 500
-  action:
-    - service: switch.turn_on
+  actions:
+    - action: number.set_value
+      target:
+        entity_id: number.greenhouse_watering_poliv_tselevoy_obem
+      data:
+        value: "{{ states('input_number.greenhouse_irrigation_volume') | float(5) }}"
+    - action: switch.turn_on
       target:
         entity_id: switch.greenhouse_watering_klapan_poliva
-    - delay: "00:05:00"
-    - service: switch.turn_off
+    - wait_for_trigger:
+        - trigger: state
+          entity_id: binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
+          to: "on"
+          for: "00:00:02"
+        - trigger: state
+          entity_id: switch.greenhouse_watering_klapan_poliva
+          to: "off"
+      timeout: "00:15:00"
+      continue_on_timeout: true
+    - if:
+        - condition: state
+          entity_id: binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
+          state: "on"
+        - condition: state
+          entity_id: binary_sensor.greenhouse_watering_poliv_net_potoka
+          state: "off"
+      then:
+        - action: notify.persistent_notification
+          data:
+            title: "Теплица — полив завершён"
+            message: >-
+              Долито {{ states('sensor.greenhouse_watering_poliv_obem_za_tsikl') | float(0) | round(2) }} л
+              (цель {{ states('number.greenhouse_watering_poliv_tselevoy_obem') | float(5) | round(2) }} л).
+      else:
+        - if:
+            - condition: state
+              entity_id: binary_sensor.greenhouse_watering_poliv_net_potoka
+              state: "off"
+          then:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — полив не завершён"
+                message: >-
+                  Цель не достигнута за 15 мин. Долито
+                  {{ states('sensor.greenhouse_watering_poliv_obem_za_tsikl') | float(0) | round(2) }} л
+                  из {{ states('number.greenhouse_watering_poliv_tselevoy_obem') | float(5) | round(2) }} л.
+    - action: switch.turn_off
       target:
         entity_id: switch.greenhouse_watering_klapan_poliva
+      continue_on_error: true
 
 - id: greenhouse_tank_fill
   alias: "Теплица — наполнение бака"
+  description: "Наполнение до поплавка с контролем потока на линии наполнения"
   mode: single
-  trigger:
-    - platform: state
+  triggers:
+    - trigger: state
       entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
       from: "on"
       to: "off"
       for: "00:01:00"
-  condition:
+  conditions:
     - condition: state
       entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
       state: "off"
-  action:
-    - service: switch.turn_on
+  actions:
+    - action: switch.turn_on
       target:
         entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
     - wait_for_trigger:
-        - platform: state
+        - trigger: state
           entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
           to: "on"
+        - trigger: state
+          entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
+          to: "off"
       timeout: "00:10:00"
-    - service: switch.turn_off
+      continue_on_timeout: true
+    - if:
+        - condition: state
+          entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+          state: "on"
+        - condition: state
+          entity_id: binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
+          state: "off"
+      then:
+        - action: notify.persistent_notification
+          data:
+            title: "Теплица — бак наполнен"
+            message: >-
+              Залито {{ states('sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl') | float(0) | round(2) }} л за цикл.
+      else:
+        - if:
+            - condition: state
+              entity_id: binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
+              state: "off"
+          then:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — наполнение не завершено"
+                message: >-
+                  Поплавок не сработал за 10 мин. Залито
+                  {{ states('sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl') | float(0) | round(2) }} л.
+    - action: switch.turn_off
       target:
         entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
+      continue_on_error: true
 
 - id: greenhouse_tank_overflow_protection
   alias: "Теплица — защита переполнения бака"
+  description: "Закрыть клапан наполнения при срабатывании поплавка высокого уровня"
   mode: restart
-  trigger:
-    - platform: state
+  triggers:
+    - trigger: state
       entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
       to: "on"
       for: "00:00:05"
-  action:
-    - service: switch.turn_off
+  actions:
+    - action: switch.turn_off
       target:
         entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
-    - service: notify.persistent_notification
+    - action: notify.persistent_notification
       data:
         title: "Теплица — переполнение бака"
         message: "Клапан наполнения принудительно закрыт."
 
+- id: greenhouse_watering_no_flow_alert
+  alias: "Теплица — авария нет потока (ручной полив/наполнение)"
+  description: "Уведомление при ручном включении клапана без потока"
+  mode: parallel
+  max: 2
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.greenhouse_watering_poliv_net_potoka
+      to: "on"
+      id: irrigation_no_flow
+    - trigger: state
+      entity_id: binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
+      to: "on"
+      id: fill_no_flow
+  actions:
+    - choose:
+        - conditions:
+            - condition: trigger
+              id: irrigation_no_flow
+          sequence:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — нет потока на линии полива"
+                message: "Клапан полива открыт без потока. Клапан будет закрыт."
+            - action: switch.turn_off
+              target:
+                entity_id: switch.greenhouse_watering_klapan_poliva
+        - conditions:
+            - condition: trigger
+              id: fill_no_flow
+          sequence:
+            - action: notify.persistent_notification
+              data:
+                title: "Теплица — нет потока при наполнении"
+                message: "Клапан наполнения открыт без потока. Клапан будет закрыт."
+            - action: switch.turn_off
+              target:
+                entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
+
 - id: greenhouse_ventilation
   alias: "Теплица — проветривание"
   mode: single
-  trigger:
-    - platform: numeric_state
+  triggers:
+    - trigger: numeric_state
       entity_id: sensor.teplitsa_tsentr_temperatura
       above: 28
       for: "00:05:00"
-    - platform: numeric_state
+      id: high_temp
+    - trigger: numeric_state
       entity_id: sensor.teplitsa_srednyaya_vlazhnost
       above: 85
       for: "00:10:00"
-  condition:
+      id: high_humidity
+  conditions:
     - condition: or
       conditions:
         - condition: numeric_state
@@ -85,25 +212,25 @@
         - condition: numeric_state
           entity_id: sensor.teplitsa_srednyaya_vlazhnost
           above: 85
-  action:
+  actions:
     - choose:
         - conditions:
             - condition: numeric_state
               entity_id: sensor.teplitsa_tsentr_temperatura
               above: 32
           sequence:
-            - service: cover.set_cover_position
+            - action: cover.set_cover_position
               target:
                 entity_id: cover.fortochka_1
               data:
                 position: 100
-            - service: cover.set_cover_position
+            - action: cover.set_cover_position
               target:
                 entity_id: cover.fortochka_2
               data:
                 position: 100
       default:
-        - service: cover.set_cover_position
+        - action: cover.set_cover_position
           target:
             entity_id:
               - cover.fortochka_1
@@ -114,16 +241,18 @@
 - id: greenhouse_close_vents_at_night
   alias: "Теплица — закрыть форточки на ночь"
   mode: single
-  trigger:
-    - platform: sun
+  triggers:
+    - trigger: sun
       event: sunset
       offset: "00:30:00"
-    - platform: numeric_state
+      id: after_sunset
+    - trigger: numeric_state
       entity_id: sensor.osveshchennost_potolok
       below: 10
       for: "00:15:00"
-  action:
-    - service: cover.close_cover
+      id: low_lux
+  actions:
+    - action: cover.close_cover
       target:
         entity_id:
           - cover.fortochka_1

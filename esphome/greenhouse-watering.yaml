@@ -8,6 +8,11 @@ esp32:
   framework:
     type: arduino
 
+substitutions:
+  flow_multiplier: "0.00222"  # YF-S201 ~450 pulses/L — calibrate on bench
+  no_flow_timeout_ms: "15000"
+  no_flow_threshold_lmin: "0.05"
+
 logger:
   level: INFO
 
@@ -35,6 +40,40 @@ wifi:
     password: !secret ap_fallback_password
 
 captive_portal:
+
+globals:
+  - id: fill_cycle_start_total
+    type: float
+    restore_value: no
+    initial_value: "0"
+  - id: irrigation_cycle_start_total
+    type: float
+    restore_value: no
+    initial_value: "0"
+  - id: fill_valve_opened_at
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: irrigation_valve_opened_at
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+  - id: fill_flow_seen
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: irrigation_flow_seen
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: fill_no_flow_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: irrigation_no_flow_fault
+    type: bool
+    restore_value: no
+    initial_value: "false"
 
 sensor:
   - platform: wifi_signal
@@ -66,7 +105,12 @@ sensor:
     unit_of_measurement: "L/min"
     accuracy_decimals: 2
     filters:
-      - multiply: 0.00222  # YF-S201: ~450 имп/л → L/min (калибровать!)
+      - multiply: ${flow_multiplier}
+    total:
+      id: irrigation_total_liters
+      internal: true
+      filters:
+        - multiply: ${flow_multiplier}
     update_interval: 1s
 
   - platform: pulse_counter
@@ -78,7 +122,40 @@ sensor:
     unit_of_measurement: "L/min"
     accuracy_decimals: 2
     filters:
-      - multiply: 0.00222
+      - multiply: ${flow_multiplier}
+    total:
+      id: fill_total_liters
+      internal: true
+      filters:
+        - multiply: ${flow_multiplier}
+    update_interval: 1s
+
+  - platform: template
+    name: "Полив — объём за цикл"
+    id: irrigation_cycle_volume
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    device_class: volume
+    state_class: measurement
+    lambda: |-
+      if (!id(irrigation_total_liters).has_state()) {
+        return 0.0f;
+      }
+      return id(irrigation_total_liters).state - id(irrigation_cycle_start_total);
+    update_interval: 1s
+
+  - platform: template
+    name: "Бак — объём наполнения за цикл"
+    id: fill_cycle_volume
+    unit_of_measurement: "L"
+    accuracy_decimals: 2
+    device_class: volume
+    state_class: measurement
+    lambda: |-
+      if (!id(fill_total_liters).has_state()) {
+        return 0.0f;
+      }
+      return id(fill_total_liters).state - id(fill_cycle_start_total);
     update_interval: 1s
 
 binary_sensor:
@@ -91,6 +168,42 @@ binary_sensor:
     id: tank_level_high
     device_class: moisture
 
+  - platform: template
+    name: "Полив — нет потока"
+    id: irrigation_no_flow
+    device_class: problem
+    lambda: |-
+      return id(irrigation_no_flow_fault);
+
+  - platform: template
+    name: "Бак — нет потока наполнения"
+    id: fill_no_flow
+    device_class: problem
+    lambda: |-
+      return id(fill_no_flow_fault);
+
+  - platform: template
+    name: "Полив — цель достигнута"
+    id: irrigation_target_reached
+    lambda: |-
+      if (!id(valve_irrigation).state) {
+        return false;
+      }
+      return id(irrigation_cycle_volume).state >= id(irrigation_target_volume).state;
+
+number:
+  - platform: template
+    name: "Полив — целевой объём"
+    id: irrigation_target_volume
+    optimistic: true
+    restore_value: true
+    initial_value: 5
+    min_value: 0.1
+    max_value: 100
+    step: 0.5
+    unit_of_measurement: "L"
+    mode: box
+
 switch:
   - platform: gpio
     pin: GPIO26
@@ -98,6 +211,19 @@ switch:
     id: valve_irrigation
     restore_mode: ALWAYS_OFF
     icon: "mdi:sprinkler"
+    on_turn_on:
+      - lambda: |-
+          if (id(irrigation_total_liters).has_state()) {
+            id(irrigation_cycle_start_total) = id(irrigation_total_liters).state;
+          } else {
+            id(irrigation_cycle_start_total) = 0.0f;
+          }
+          id(irrigation_valve_opened_at) = millis();
+          id(irrigation_flow_seen) = false;
+          id(irrigation_no_flow_fault) = false;
+    on_turn_off:
+      - lambda: |-
+          id(irrigation_no_flow_fault) = false;
 
   - platform: gpio
     pin: GPIO27
@@ -105,6 +231,19 @@ switch:
     id: valve_tank_fill
     restore_mode: ALWAYS_OFF
     icon: "mdi:water-pump"
+    on_turn_on:
+      - lambda: |-
+          if (id(fill_total_liters).has_state()) {
+            id(fill_cycle_start_total) = id(fill_total_liters).state;
+          } else {
+            id(fill_cycle_start_total) = 0.0f;
+          }
+          id(fill_valve_opened_at) = millis();
+          id(fill_flow_seen) = false;
+          id(fill_no_flow_fault) = false;
+    on_turn_off:
+      - lambda: |-
+          id(fill_no_flow_fault) = false;
 
 one_wire:
   - platform: gpio
@@ -112,13 +251,42 @@ one_wire:
     id: bus_onewire
 
 interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            switch.is_on: valve_irrigation
+          then:
+            - lambda: |-
+                const float threshold = atof("${no_flow_threshold_lmin}");
+                const uint32_t timeout_ms = atoi("${no_flow_timeout_ms}");
+                if (id(flow_irrigation).has_state() && id(flow_irrigation).state >= threshold) {
+                  id(irrigation_flow_seen) = true;
+                } else if (!id(irrigation_flow_seen) &&
+                           (millis() - id(irrigation_valve_opened_at)) >= timeout_ms) {
+                  id(irrigation_no_flow_fault) = true;
+                }
+      - if:
+          condition:
+            switch.is_on: valve_tank_fill
+          then:
+            - lambda: |-
+                const float threshold = atof("${no_flow_threshold_lmin}");
+                const uint32_t timeout_ms = atoi("${no_flow_timeout_ms}");
+                if (id(flow_tank_fill).has_state() && id(flow_tank_fill).state >= threshold) {
+                  id(fill_flow_seen) = true;
+                } else if (!id(fill_flow_seen) &&
+                           (millis() - id(fill_valve_opened_at)) >= timeout_ms) {
+                  id(fill_no_flow_fault) = true;
+                }
+
   - interval: 5min
     then:
       - if:
           condition:
             lambda: 'return id(wifi_rssi).state < -85;'
           then:
-            - logger.log: "RSSI низкий, перезагрузка Wi-Fi"
+            - logger.log: "RSSI low, Wi-Fi reconnect"
             - wifi.disable:
             - delay: 5s
             - wifi.enable:

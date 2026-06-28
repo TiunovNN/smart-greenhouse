@@ -18,8 +18,12 @@ smart-greenhouse/
 │   ├── secrets.yaml.example         # Template for credentials (copy to secrets.yaml)
 │   └── secrets.yaml                 # Local credentials — NEVER commit
 ├── homeassistant/
-│   └── automations/
-│       └── greenhouse.yaml          # HA automations referencing ESPHome entities
+│   ├── automations/
+│   │   └── greenhouse.yaml          # HA automations referencing ESPHome entities
+│   └── input_number.yaml            # Dashboard helpers (include in configuration.yaml)
+├── .cursor/
+│   └── skills/
+│       └── home-assistant/          # HA YAML skill (from aurora-smart-home, adapted)
 ├── AGENTS.md                        # This file
 ├── Task.md                          # Task tracking
 └── README.md                        # Quick start for humans
@@ -84,6 +88,16 @@ automation: !include_dir_merge_list automations/
 ```
 
 Entity IDs in automations must match your HA instance after ESPHome pairing. The design doc table (section 4.4) lists expected IDs.
+
+Use **modern HA syntax** (2024.8+): plural `triggers:` / `conditions:` / `actions:`, service calls as `action:` (not `service:`), `trigger: state` inside trigger lists (not `platform:`). See `.cursor/skills/home-assistant/SKILL.md` when editing automations.
+
+## Cursor skills
+
+| Skill | Path | Use when |
+|-------|------|----------|
+| Home Assistant YAML | `.cursor/skills/home-assistant/` | Writing or reviewing `homeassistant/` automations, helpers, templates |
+
+Adapted from [aurora-smart-home/home-assistant](https://github.com/tonylofgren/aurora-smart-home/tree/main/home-assistant).
 
 ## Language
 
