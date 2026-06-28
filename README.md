@@ -45,6 +45,15 @@ Copy or include `homeassistant/automations/greenhouse.yaml`. Verify entity IDs i
 
 **Optional CV** (not in base BOM): see [docs/05-computer-vision.md](docs/05-computer-vision.md). Radxa edge captures locally; Pi runs `scripts/capture_and_analyze.sh` for Yandex upload/analyze. Example automations: `homeassistant/automations/greenhouse_cv.yaml.example`.
 
+### 4. Utility scripts
+
+Python scripts use `uv` with the pinned version from `.python-version`:
+
+```bash
+uv python install
+uv run scripts/generate_bom.py
+```
+
 ## Repository structure
 
 | Path | Purpose |

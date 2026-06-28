@@ -45,7 +45,19 @@ wifi:
 captive_portal:
 
 globals:
-  - id: fill_cycle_start_total
+  - id: fill_cycle_start_pulses
+    type: float
+    restore_value: no
+    initial_value: "0"
+  - id: fill_middle_level_pulses
+    type: float
+    restore_value: no
+    initial_value: "0"
+  - id: fill_calibration_window_active
+    type: bool
+    restore_value: no
+    initial_value: "false"
+  - id: fill_last_calibration_pulses
     type: float
     restore_value: no
     initial_value: "0"
@@ -149,12 +161,14 @@ sensor:
     unit_of_measurement: "L/min"
     accuracy_decimals: 2
     filters:
-      - multiply: ${flow_multiplier}
+      - lambda: |-
+          const float multiplier = isnan(id(fill_flow_multiplier).state)
+              ? atof("${flow_multiplier}")
+              : id(fill_flow_multiplier).state;
+          return x * multiplier;
     total:
-      id: fill_total_liters
+      id: fill_total_pulses
       internal: true
-      filters:
-        - multiply: ${flow_multiplier}
     update_interval: 1s
 
   - platform: template
@@ -179,11 +193,23 @@ sensor:
     device_class: volume
     state_class: measurement
     lambda: |-
-      if (!id(fill_total_liters).has_state()) {
+      if (!id(fill_total_pulses).has_state()) {
         return 0.0f;
       }
-      return id(fill_total_liters).state - id(fill_cycle_start_total);
+      const float multiplier = isnan(id(fill_flow_multiplier).state)
+          ? atof("${flow_multiplier}")
+          : id(fill_flow_multiplier).state;
+      return (id(fill_total_pulses).state - id(fill_cycle_start_pulses)) * multiplier;
     update_interval: 1s
+
+  - platform: template
+    name: "Бак — импульсы последней калибровки"
+    id: fill_last_calibration_pulse_count
+    accuracy_decimals: 0
+    state_class: measurement
+    lambda: |-
+      return id(fill_last_calibration_pulses);
+    update_interval: 30s
 
 binary_sensor:
   - platform: gpio
@@ -191,9 +217,52 @@ binary_sensor:
       number: GPIO16
       mode: INPUT_PULLUP
       inverted: true
-    name: "Бак — высокий уровень"
-    id: tank_level_high
+    name: "Бак — верхний уровень"
+    id: tank_level_upper
     device_class: moisture
+    filters:
+      - delayed_on: 2s
+      - delayed_off: 5s
+    on_press:
+      - lambda: |-
+          if (!id(fill_calibration_window_active) || !id(fill_total_pulses).has_state()) {
+            return;
+          }
+          const float pulses = id(fill_total_pulses).state - id(fill_middle_level_pulses);
+          const float known_volume = id(fill_level_gap_volume).state;
+          if (pulses < 10.0f || known_volume <= 0.0f) {
+            id(fill_calibration_window_active) = false;
+            return;
+          }
+          const float calibrated_multiplier = known_volume / pulses;
+          if (calibrated_multiplier < 0.0005f || calibrated_multiplier > 0.01f) {
+            id(fill_calibration_window_active) = false;
+            return;
+          }
+          auto call = id(fill_flow_multiplier).make_call();
+          call.set_value(calibrated_multiplier);
+          call.perform();
+          id(fill_last_calibration_pulses) = pulses;
+          id(fill_calibration_window_active) = false;
+      - switch.turn_off: valve_tank_fill
+
+  - platform: gpio
+    pin:
+      number: GPIO17
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Бак — средний уровень"
+    id: tank_level_middle
+    device_class: moisture
+    filters:
+      - delayed_on: 2s
+      - delayed_off: 5s
+    on_press:
+      - lambda: |-
+          if (id(valve_tank_fill).state && id(fill_total_pulses).has_state()) {
+            id(fill_middle_level_pulses) = id(fill_total_pulses).state;
+            id(fill_calibration_window_active) = true;
+          }
 
   - platform: template
     name: "Полив — нет потока"
@@ -245,6 +314,29 @@ number:
     unit_of_measurement: "L"
     mode: box
 
+  - platform: template
+    name: "Бак — объём между уровнями"
+    id: fill_level_gap_volume
+    optimistic: true
+    restore_value: true
+    initial_value: 10
+    min_value: 0.5
+    max_value: 200
+    step: 0.1
+    unit_of_measurement: "L"
+    mode: box
+
+  - platform: template
+    name: "Бак — коэффициент расходомера наполнения"
+    id: fill_flow_multiplier
+    optimistic: true
+    restore_value: true
+    initial_value: ${flow_multiplier}
+    min_value: 0.0005
+    max_value: 0.01
+    step: 0.00001
+    mode: box
+
 switch:
   - platform: gpio
     pin: GPIO26
@@ -278,11 +370,12 @@ switch:
     icon: "mdi:water-pump"
     on_turn_on:
       - lambda: |-
-          if (id(fill_total_liters).has_state()) {
-            id(fill_cycle_start_total) = id(fill_total_liters).state;
+          if (id(fill_total_pulses).has_state()) {
+            id(fill_cycle_start_pulses) = id(fill_total_pulses).state;
           } else {
-            id(fill_cycle_start_total) = 0.0f;
+            id(fill_cycle_start_pulses) = 0.0f;
           }
+          id(fill_calibration_window_active) = false;
           id(fill_valve_opened_at) = millis();
           id(fill_flow_seen) = false;
           id(fill_no_flow_fault) = false;

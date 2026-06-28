@@ -26,14 +26,19 @@
 #   binary_sensor.greenhouse_climate_fortochka_2_oshibka_polozheniya
 #
 # New watering entities (after flash):
+#   binary_sensor.greenhouse_watering_bak_verkhniy_uroven
+#   binary_sensor.greenhouse_watering_bak_sredniy_uroven
 #   sensor.greenhouse_watering_poliv_obem_za_tsikl
 #   sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl
+#   sensor.greenhouse_watering_bak_impulsy_posledney_kalibrovki
 #   binary_sensor.greenhouse_watering_poliv_net_potoka
 #   binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
 #   binary_sensor.greenhouse_watering_poliv_potok_pri_zakrytom_klapane
 #   binary_sensor.greenhouse_watering_bak_potok_pri_zakrytom_klapane
 #   binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
 #   number.greenhouse_watering_poliv_tselevoy_obem
+#   number.greenhouse_watering_bak_obem_mezhdu_urovnyami
+#   number.greenhouse_watering_bak_koeffitsient_raskhodomera_napolneniya
 #
 # Helpers: input_boolean.greenhouse_season_active, input_select.greenhouse_plant_profile, input_number.*
 # (input_boolean.yaml, input_select.yaml, input_number.yaml)
@@ -198,11 +203,11 @@
 
 - id: greenhouse_tank_fill
   alias: "Теплица — наполнение бака"
-  description: "Наполнение до поплавка с контролем потока на линии наполнения"
+  description: "Наполнение от среднего до верхнего контактного уровня с контролем потока"
   mode: single
   triggers:
     - trigger: state
-      entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+      entity_id: binary_sensor.greenhouse_watering_bak_sredniy_uroven
       from: "on"
       to: "off"
       for: "00:01:00"
@@ -211,7 +216,7 @@
       entity_id: input_boolean.greenhouse_season_active
       state: "on"
     - condition: state
-      entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+      entity_id: binary_sensor.greenhouse_watering_bak_sredniy_uroven
       state: "off"
   actions:
     - action: switch.turn_on
@@ -219,7 +224,7 @@
         entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
     - wait_for_trigger:
         - trigger: state
-          entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+          entity_id: binary_sensor.greenhouse_watering_bak_verkhniy_uroven
           to: "on"
         - trigger: state
           entity_id: switch.greenhouse_watering_klapan_napolneniya_baka
@@ -228,7 +233,7 @@
       continue_on_timeout: true
     - if:
         - condition: state
-          entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+          entity_id: binary_sensor.greenhouse_watering_bak_verkhniy_uroven
           state: "on"
         - condition: state
           entity_id: binary_sensor.greenhouse_watering_bak_net_potoka_napolneniya
@@ -249,7 +254,7 @@
               data:
                 title: "Теплица — наполнение не завершено"
                 message: >-
-                  Поплавок не сработал за 10 мин. Залито
+                  Верхний уровень не достигнут за 10 мин. Залито
                   {{ states('sensor.greenhouse_watering_bak_obem_napolneniya_za_tsikl') | float(0) | round(2) }} л.
     - action: switch.turn_off
       target:
@@ -258,11 +263,11 @@
 
 - id: greenhouse_tank_overflow_protection
   alias: "Теплица — защита переполнения бака"
-  description: "Закрыть клапан наполнения при срабатывании поплавка высокого уровня"
+  description: "Закрыть клапан наполнения при достижении верхнего контактного уровня"
   mode: restart
   triggers:
     - trigger: state
-      entity_id: binary_sensor.greenhouse_watering_bak_vysokiy_uroven
+      entity_id: binary_sensor.greenhouse_watering_bak_verkhniy_uroven
       to: "on"
       for: "00:00:05"
   conditions:
