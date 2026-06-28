@@ -26,20 +26,109 @@
 #   binary_sensor.greenhouse_watering_poliv_tsel_dostignuta
 #   number.greenhouse_watering_poliv_tselevoy_obem
 #
-# Helpers: homeassistant/input_number.yaml
+# Helpers: input_select.greenhouse_plant_profile, input_number.* (input_select.yaml, input_number.yaml)
+# Profile defaults: homeassistant/plant_profiles.yaml — applied by greenhouse_apply_plant_profile
 # Prefer number.greenhouse_watering_poliv_tselevoy_obem on device; input_number is a dashboard fallback.
+# Irrigation uses avg air RH (SHT31) as proxy for soil moisture — no soil sensor in hardware yet.
+
+- id: greenhouse_apply_plant_profile
+  alias: "Теплица — применить профиль культуры"
+  description: >-
+    Загрузить уставки полива и проветривания из профиля (огурцы / помидоры).
+    Ручные правки input_number сохраняются до следующей смены профиля или перезапуска HA.
+  mode: restart
+  triggers:
+    - trigger: state
+      entity_id: input_select.greenhouse_plant_profile
+    - trigger: homeassistant
+      event: start
+  actions:
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: input_select.greenhouse_plant_profile
+              state: "Огурцы"
+          sequence:
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_irrigation_humidity_min
+              data:
+                value: 68
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_irrigation_volume
+              data:
+                value: 6
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_vent_temp_open
+              data:
+                value: 26
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_vent_temp_full
+              data:
+                value: 30
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_vent_humidity_max
+              data:
+                value: 82
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_soil_moisture_min
+              data:
+                value: 60
+        - conditions:
+            - condition: state
+              entity_id: input_select.greenhouse_plant_profile
+              state: "Помидоры"
+          sequence:
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_irrigation_humidity_min
+              data:
+                value: 58
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_irrigation_volume
+              data:
+                value: 4.5
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_vent_temp_open
+              data:
+                value: 24
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_vent_temp_full
+              data:
+                value: 28
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_vent_humidity_max
+              data:
+                value: 70
+            - action: input_number.set_value
+              target:
+                entity_id: input_number.greenhouse_soil_moisture_min
+              data:
+                value: 55
 
 - id: greenhouse_irrigation_by_humidity
   alias: "Теплица — полив по влажности"
-  description: "Полив до целевого объёма если средняя влажность < 55% и светло"
+  description: >-
+    Полив до целевого объёма если средняя RH воздуха ниже уставки профиля
+    (прокси влажности почвы) и светло
   mode: single
   triggers:
     - trigger: time
       at: "07:00:00"
   conditions:
-    - condition: numeric_state
-      entity_id: sensor.teplitsa_srednyaya_vlazhnost
-      below: 55
+    - condition: template
+      value_template: >-
+        {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(100) <
+           states('input_number.greenhouse_irrigation_humidity_min') | float(55) }}
     - condition: numeric_state
       entity_id: sensor.osveshchennost_potolok
       above: 500
@@ -252,35 +341,40 @@
 - id: greenhouse_ventilation
   alias: "Теплица — проветривание"
   description: >-
-    Открыть форточки при перегреве в любой зоне (max T > 28 °C, 5 мин) или высокой
-    средней влажности (> 85 %, 10 мин). Полное открытие при max T > 32 °C.
+    Открыть форточки при max T выше уставки профиля (5 мин) или средней RH выше
+    уставки (10 мин). Полное открытие при max T выше greenhouse_vent_temp_full.
   mode: single
   triggers:
-    - trigger: numeric_state
-      entity_id: sensor.teplitsa_max_temperatura
-      above: 28
+    - trigger: template
+      value_template: >-
+        {{ states('sensor.teplitsa_max_temperatura') | float(0) >
+           states('input_number.greenhouse_vent_temp_open') | float(28) }}
       for: "00:05:00"
       id: high_temp
-    - trigger: numeric_state
-      entity_id: sensor.teplitsa_srednyaya_vlazhnost
-      above: 85
+    - trigger: template
+      value_template: >-
+        {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(0) >
+           states('input_number.greenhouse_vent_humidity_max') | float(85) }}
       for: "00:10:00"
       id: high_humidity
   conditions:
     - condition: or
       conditions:
-        - condition: numeric_state
-          entity_id: sensor.teplitsa_max_temperatura
-          above: 28
-        - condition: numeric_state
-          entity_id: sensor.teplitsa_srednyaya_vlazhnost
-          above: 85
+        - condition: template
+          value_template: >-
+            {{ states('sensor.teplitsa_max_temperatura') | float(0) >
+               states('input_number.greenhouse_vent_temp_open') | float(28) }}
+        - condition: template
+          value_template: >-
+            {{ states('sensor.teplitsa_srednyaya_vlazhnost') | float(0) >
+               states('input_number.greenhouse_vent_humidity_max') | float(85) }}
   actions:
     - choose:
         - conditions:
-            - condition: numeric_state
-              entity_id: sensor.teplitsa_max_temperatura
-              above: 32
+            - condition: template
+              value_template: >-
+                {{ states('sensor.teplitsa_max_temperatura') | float(0) >
+                   states('input_number.greenhouse_vent_temp_full') | float(32) }}
           sequence:
             - action: cover.set_cover_position
               target:

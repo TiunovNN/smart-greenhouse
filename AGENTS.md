@@ -24,7 +24,9 @@ smart-greenhouse/
 ├── homeassistant/
 │   ├── automations/
 │   │   └── greenhouse.yaml          # HA automations referencing ESPHome entities
-│   └── input_number.yaml            # Dashboard helpers (include in configuration.yaml)
+│   ├── input_select.yaml            # Plant profile selector (include in configuration.yaml)
+│   ├── input_number.yaml            # Setpoints — irrigation, vent thresholds (include in configuration.yaml)
+│   └── plant_profiles.yaml          # Profile default values (reference; applied by automation)
 ├── .cursor/
 │   └── skills/
 │       └── home-assistant/          # HA YAML skill (from aurora-smart-home, adapted)
@@ -41,6 +43,8 @@ smart-greenhouse/
 | ESPHome internal IDs | snake_case | `valve_irrigation`, `temp_center_top`, `temp_entrance_low` |
 | HA entity prefix | Derived from device name | `greenhouse_watering_*`, climate entities from Russian friendly names |
 | Automation IDs | snake_case, prefixed | `greenhouse_irrigation_by_humidity` |
+| Plant profile select | `input_select.greenhouse_plant_profile` | States: `Огурцы`, `Помидоры` |
+| Profile setpoints | `input_number.greenhouse_*` | See `plant_profiles.yaml` and `docs/01-overview.md` §4.6 (central Russia defaults + seasonal notes) |
 
 Home Assistant generates `entity_id` values from friendly names (often transliterated Russian). After first pairing, verify entity IDs in **Settings → Devices** and update `homeassistant/automations/greenhouse.yaml` if they differ from the design doc examples.
 
@@ -79,11 +83,14 @@ Automations in `homeassistant/automations/greenhouse.yaml` orchestrate ESPHome e
 
 | Automation | Triggers | ESPHome entities used |
 |------------|----------|------------------------|
-| Полив по влажности | 07:00 daily | humidity, lux, irrigation valve |
+| Применить профиль культуры | Profile change / HA start | `input_select`, `input_number` helpers |
+| Полив по влажности | 07:00 daily | avg RH (SHT31 proxy), lux, irrigation valve |
 | Наполнение бака | Tank level drops | fill valve, level sensor |
 | Защита переполнения | Level high 5 s | fill valve off + notification |
-| Проветривание | max T > 28 °C or avg humidity > 85% | triangulation sensors, vent covers |
+| Проветривание | max T or avg RH above profile setpoints | triangulation sensors, vent covers |
 | Закрыть форточки на ночь | Sunset + low lux | vent covers |
+
+Profile helpers (`input_select.greenhouse_plant_profile`, `input_number.greenhouse_*`): include `input_select.yaml` and `input_number.yaml` in `configuration.yaml`. Defaults target **central Russia** (peak season); seasonal manual tweaks — `plant_profiles.yaml` `seasonal_notes` and `docs/01-overview.md` §4.6. Irrigation uses **average air humidity** as soil moisture proxy — no soil sensor in current hardware.
 
 Import via **Settings → Automations → Import** or include in `configuration.yaml`:
 

@@ -199,13 +199,14 @@ ASCII (для печати / быстрой сверки на объекте):
 
 | ID | Назначение |
 |----|------------|
-| `greenhouse_irrigation_by_humidity` | Полив до целевого объёма (утро, влажность < 55 %, светло) |
+| `greenhouse_apply_plant_profile` | Уставки полива/проветривания по профилю (огурцы / помидоры) |
+| `greenhouse_irrigation_by_humidity` | Полив до целевого объёма (утро, RH ниже уставки профиля, светло) |
 | `greenhouse_tank_fill` | Наполнение до поплавка с учётом расхода |
 | `greenhouse_tank_overflow_protection` | Аварийное закрытие при переполнении |
 | `greenhouse_watering_no_flow_alert` | Закрытие клапана и уведомление при «нет потока» |
 | `greenhouse_watering_post_close_flow_alert` | Уведомление при неожиданном потоке на закрытой линии (после закрытия или в простое) |
 
-Helper для дашборда: `input_number.greenhouse_irrigation_volume` (`homeassistant/input_number.yaml`).
+Helpers: `input_select.greenhouse_plant_profile`, `input_number.greenhouse_*` (`homeassistant/input_select.yaml`, `input_number.yaml`). Профили и прокси RH — см. [01-overview.md §4.6](01-overview.md#46-профили-культур-огурцы--помидоры).
 
 #### 2.6.4. Капельная линия — рекомендации
 
