@@ -1,10 +1,13 @@
 # Компьютерное зрение: мониторинг растений в теплице
 
-← [04-esp32-and-cabinet](04-esp32-and-cabinet.md) | [Оглавление](smart-greenhouse-design.md) | [01-overview](01-overview.md) →
+← [04-esp32-and-cabinet](04-esp32-and-cabinet.md) | [Оглавление](smart-greenhouse-design.md) |
+[01-overview](01-overview.md) →
 
 ---
 
-Документ описывает **проектное решение** для двух камер внутри теплицы и облачного анализа изображений **2 раза в сутки** (утро и вечер по фотопериоду). Цель — раннее выявление болезней, вредителей и признаков стресса у огурцов и помидоров с возвратом результатов в Home Assistant.
+Документ описывает **проектное решение** для двух камер внутри теплицы и облачного анализа
+изображений **2 раза в сутки** (утро и вечер по фотопериоду). Цель — раннее выявление болезней,
+вредителей и признаков стресса у огурцов и помидоров с возвратом результатов в Home Assistant.
 
 **Принятые решения (2026-06):**
 
@@ -18,13 +21,18 @@
 | Освещение съёмки | По **фотопериоду** и BH1750 (`sensor.osveshchennost_potolok`); без фиксированной LED‑вспышки в 18:00 |
 | Связь edge ↔ HA | **Локальная сеть:** edge → Pi (SCP / HTTP POST / MQTT с метаданными); Pi → edge (MQTT trigger capture, HA REST для lux) |
 
-Связанные разделы: триангуляция климата — [03 §1.4.1](03-greenhouse-installation.md#141-размещение-sht31--3-триангуляция-климата); профили культур — [01-overview.md §4.6](01-overview.md#46-профили-культур-огурцы--помидоры); сеть IoT VLAN — [01-overview.md §3](01-overview.md#3-настройка-wi-fi-и-mesh).
+Связанные разделы: триангуляция климата — [03
+§1.4.1](03-greenhouse-installation.md#141-размещение-sht31--3-триангуляция-климата); профили культур
+— [01-overview.md §4.6](01-overview.md#46-профили-культур-огурцы--помидоры); сеть IoT VLAN —
+[01-overview.md §3](01-overview.md#3-настройка-wi-fi-и-mesh).
 
-**Статус:** проект / фаза 0 — не входит в текущий BOM (~52 000 ₽). Реализация — поэтапно после стабилизации базовой автоматизации.
+**Статус:** проект / фаза 0 — не входит в текущий BOM (~52 000 ₽). Реализация — поэтапно после
+стабилизации базовой автоматизации.
 
 ### 0.1.4. Сезонная эксплуатация CV
 
-CV привязан к **сезону щита** ([03 §0.1](03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита)):
+CV привязан к **сезону щита** ([03
+§0.1](03-greenhouse-installation.md#01-сезонная-эксплуатация-монтаж-и-демонтаж-щита)):
 
 | Компонент | Зима | Примечание |
 |-----------|------|------------|
@@ -32,7 +40,8 @@ CV привязан к **сезону щита** ([03 §0.1](03-greenhouse-insta
 | **PoE камеры внутри теплицы** | **На выбор владельца** | **A)** оставить на месте, **PoE off** на коммутаторе (объектив под плёнкой/чехлом — опц.); **B)** снять, хранить в сухом месте, Cat6 — заглушка на вводе |
 | **Cat6 PoE** | Остаётся в теплице | При снятых камерах — защитить разъёмы; при оставленных — без питания зимой |
 
-По умолчанию в проекте: **камеры могут остаться unpowered** (вариант A); **edge всегда уезжает со щитом**. Automations `greenhouse_cv.yaml.example` неактивны без edge и камер.
+По умолчанию в проекте: **камеры могут остаться unpowered** (вариант A); **edge всегда уезжает со
+щитом**. Automations `greenhouse_cv.yaml.example` неактивны без edge и камер.
 
 ---
 
@@ -46,7 +55,8 @@ CV привязан к **сезону щита** ([03 §0.1](03-greenhouse-insta
 | Соответствие 152‑ФЗ | Данные и inference **в РФ** (Yandex Cloud, регион `ru-central1`) |
 | Бюджет hobby‑теплицы | Облачный inference дешевле GPU‑сервера; PoE предпочтительнее Pi Camera на длинных кабелях |
 
-**Не входит в scope v1:** распознавание лиц, видеопоток 24/7, автоматическое опрыскивание по результатам CV.
+**Не входит в scope v1:** распознавание лиц, видеопоток 24/7, автоматическое опрыскивание по
+результатам CV.
 
 ---
 
@@ -104,12 +114,18 @@ flowchart TB
 
 **Поток данных:**
 
-1. HA на **Pi** в **07:00** и **sunset − 45 min** публикует MQTT `greenhouse/cv/capture` (или REST edge‑сервиса).
-2. Edge SBC читает `sensor.osveshchennost_potolok` через **HA REST API** (локально); при lux ≥ порога (§4.1) — RTSP snapshot с CV‑1 и CV‑2.
-3. **Phase 2b (опционально):** локальный **ONNX Runtime** на edge; при confidence > 0.85 и класс «healthy» — метка `prefilter_healthy` в метаданных (Pi может skip cloud).
-4. Edge **передаёт JPEG** на Pi: SCP → `/config/greenhouse_cv/inbox/`, HTTP POST на локальный endpoint, или MQTT + отдельный SCP/rsync. **Yandex credentials не хранятся на Radxa.**
-5. **Pi / HA:** `scripts/capture_and_analyze.sh` — S3 PUT + Foundation Models API (мультимодальный prompt с профилем культуры) → JSON в `input_text.greenhouse_cv_last_report`.
-6. Automations на Pi: notify; при болезни + высокой RH — проветривание; при водном стрессе — подсказка полива (§7.4).
+1. HA на **Pi** в **07:00** и **sunset − 45 min** публикует MQTT `greenhouse/cv/capture` (или REST
+   edge‑сервиса).
+2. Edge SBC читает `sensor.osveshchennost_potolok` через **HA REST API** (локально); при lux ≥
+   порога (§4.1) — RTSP snapshot с CV‑1 и CV‑2.
+3. **Phase 2b (опционально):** локальный **ONNX Runtime** на edge; при confidence > 0.85 и класс
+   «healthy» — метка `prefilter_healthy` в метаданных (Pi может skip cloud).
+4. Edge **передаёт JPEG** на Pi: SCP → `/config/greenhouse_cv/inbox/`, HTTP POST на локальный
+   endpoint, или MQTT + отдельный SCP/rsync. **Yandex credentials не хранятся на Radxa.**
+5. **Pi / HA:** `scripts/capture_and_analyze.sh` — S3 PUT + Foundation Models API (мультимодальный
+   prompt с профилем культуры) → JSON в `input_text.greenhouse_cv_last_report`.
+6. Automations на Pi: notify; при болезни + высокой RH — проветривание; при водном стрессе —
+   подсказка полива (§7.4).
 
 ---
 
@@ -117,9 +133,12 @@ flowchart TB
 
 ### 3.1. Планировка грядок и камеры (П‑образная)
 
-Грядки расположены **П‑образно от входа**: центральный **коридор** от двери к дальнему излому, по обе стороны коридора — **два плеча** грядок (левая и правая «руки» буквы П). Типичная теплица 3×4 … 3×6 м.
+Грядки расположены **П‑образно от входа**: центральный **коридор** от двери к дальнему излому, по
+обе стороны коридора — **два плеча** грядок (левая и правая «руки» буквы П). Типичная теплица 3×4 …
+3×6 м.
 
-Подробная схема монтажа — [03 §1.4.2](03-greenhouse-installation.md#142-п-образная-планировка-грядок-и-камеры-cv).
+Подробная схема монтажа — [03
+§1.4.2](03-greenhouse-installation.md#142-п-образная-планировка-грядок-и-камеры-cv).
 
 | Камера | Зона | Высота / угол | Покрытие (П‑layout) |
 |--------|------|---------------|---------------------|
@@ -152,11 +171,13 @@ flowchart TB
 
 **Почему двух камер достаточно для П‑layout:**
 
-- CV‑1 с широкоугольным объективом (2,8–4 mm) видит **оба плеча в перспективе** от точки входа — типичный «рабочий» обзор.
-- CV‑2 смотрит **навстречу** CV‑1 и закрывает **дальние 40–50 %** каждого плеча, где перспектива CV‑1 сжимает детали листвы.
-- Центральный blind spot между плечами у излома П минимален при высоте 2,2–2,5 m; третья камера — только Phase 3 при подтверждённом dead zone.
+- CV‑1 с широкоугольным объективом (2,8–4 mm) видит **оба плеча в перспективе** от точки входа —
+  типичный «рабочий» обзор. CV‑2 смотрит **навстречу** CV‑1 и закрывает **дальние 40–50 %** каждого
+  плеча, где перспектива CV‑1 сжимает детали листвы. Центральный blind spot между плечами у излома П
+  минимален при высоте 2,2–2,5 m; третья камера — только Phase 3 при подтверждённом dead zone.
 
-**Имена сущностей HA (пример):** `camera.greenhouse_cv_entrance` (CV‑1), `camera.greenhouse_cv_far` (CV‑2).
+**Имена сущностей HA (пример):** `camera.greenhouse_cv_entrance` (CV‑1), `camera.greenhouse_cv_far`
+(CV‑2).
 
 ### 3.2. PoE IP vs Pi Camera Module 3
 
@@ -167,7 +188,8 @@ flowchart TB
 | Интеграция HA | Reolink / ONVIF / Generic RTSP | `rpi_camera` или go2rtc на Pi |
 | Стоимость ×2 | ~14 000–22 000 ₽ | ~6 000 ₽ камеры + риски монтажа |
 
-**Рекомендация ★:** две **PoE IP камеры** (802.3af), bullet или dome IP66/IP67, RTSP без обязательного облака производителя.
+**Рекомендация ★:** две **PoE IP камеры** (802.3af), bullet или dome IP66/IP67, RTSP без
+обязательного облака производителя.
 
 ### 3.3. Защита от влаги и конденсата
 
@@ -182,11 +204,17 @@ flowchart TB
 | **Cat6 наружный** от PoE‑коммутатора → ввод у двери → камеры | См. [03 §0](03-greenhouse-installation.md#0-щит-снаружи-датчики-и-камеры-внутри) |
 | Съёмка в **световое окно** по BH1750 | Меньше «туманных» кадров на рассвете/сумерках |
 
-**Щит / edge SBC (снаружи у входа):** конденсат в корпусе из‑за точки росы и влажного притока — [04 §1.3](04-esp32-and-cabinet.md#13-щит-ip65-снаружи-у-входа--контроллеры-и-питание) (Gore vent, силика‑гель, ориентация, опц. обогрев). **Не** путать с RH внутри теплицы: в щите целевой микроклимат сухой.
+**Щит / edge SBC (снаружи у входа):** конденсат в корпусе из‑за точки росы и влажного притока — [04
+§1.3](04-esp32-and-cabinet.md#13-щит-ip65-снаружи-у-входа--контроллеры-и-питание) (Gore vent,
+силика‑гель, ориентация, опц. обогрев). **Не** путать с RH внутри теплицы: в щите целевой
+микроклимат сухой.
 
 ### 3.4. Edge SBC в щите IP65 (снаружи)
 
-Камеры — PoE IP **внутри** теплицы (RH 70–95 %); **захват и inference** — на **Radxa ZERO 3W** в том же щите **снаружи у входа**, что ESP32. Pi 5 остаётся дома как HA‑сервер. RTSP — по Wi‑Fi/LAN VLAN; PoE‑кабели камер идут **через стенку** к домашнему PoE‑коммутатору, не через щит (данные). **Зимой SBC хранится вместе со снятым щитом** ([§0.1.4](#014-сезонная-эксплуатация-cv)).
+Камеры — PoE IP **внутри** теплицы (RH 70–95 %); **захват и inference** — на **Radxa ZERO 3W** в том
+же щите **снаружи у входа**, что ESP32. Pi 5 остаётся дома как HA‑сервер. RTSP — по Wi‑Fi/LAN VLAN;
+PoE‑кабели камер идут **через стенку** к домашнему PoE‑коммутатору, не через щит (данные). **Зимой
+SBC хранится вместе со снятым щитом** ([§0.1.4](#014-сезонная-эксплуатация-cv)).
 
 #### 3.4.1. Рекомендация ★ — Radxa ZERO 3W (1 GB / 8 GB eMMC)
 
@@ -200,9 +228,12 @@ flowchart TB
 | Цена ★, ₽ (июнь 2026) | **~3 800** ([onpad.ru](https://onpad.ru/catalog/cubie/radxa/rock/radxa_zero_series/3542.html)) | ~4 500–6 400 | ~4 700 | ~5 000+ (новинка, редко в РФ) |
 | Питание | USB‑C **5 V 2 A** | USB‑C 5 V 2 A | microUSB 5 V 2.5 A | USB‑C 5 V 3 A |
 
-**Почему Radxa ZERO 3W ★:** встроенная eMMC (надёжнее microSD в уличном щите у влажного входа), 4 ядра достаточно для 2× snapshot/день + ONNX, **самая низкая цена** среди пригодных плат; форм‑фактор Pi Zero — монтаж на DIN‑плату.
+**Почему Radxa ZERO 3W ★:** встроенная eMMC (надёжнее microSD в уличном щите у влажного входа), 4
+ядра достаточно для 2× snapshot/день + ONNX, **самая низкая цена** среди пригодных плат; форм‑фактор
+Pi Zero — монтаж на DIN‑плату.
 
-**Не рекомендуется для v1:** RPi Zero 2W (512 MB RAM — OOM при OpenCV + ONNX); Luckfox (нет полноценного Debian, слабая документация под Python CV).
+**Не рекомендуется для v1:** RPi Zero 2W (512 MB RAM — OOM при OpenCV + ONNX); Luckfox (нет
+полноценного Debian, слабая документация под Python CV).
 
 #### 3.4.2. Монтаж SBC в IP65 щите (снаружи)
 
@@ -216,7 +247,8 @@ flowchart TB
 | microSD **не обязателен** при eMMC; для Radxa — резервная SD опциональна | |
 | Hostname / mDNS | `greenhouse-cv-edge` |
 
-**PoE для SBC:** не используется — PoE идёт на **камеры** (802.3af через коммутатор в домашнем шкафу). SBC питается от **5 V БП щита**.
+**PoE для SBC:** не используется — PoE идёт на **камеры** (802.3af через коммутатор в домашнем
+шкафу). SBC питается от **5 V БП щита**.
 
 #### 3.4.3. ПО на edge
 
@@ -231,7 +263,8 @@ flowchart TB
 
 **Не устанавливать на edge:** `boto3`, Yandex Cloud SDK, ключи Object Storage / Foundation Models.
 
-Кэш снимков: `/var/lib/greenhouse_cv/` (7–14 дней, rotate). Референс edge‑скрипт (не в repo): `edge_capture.sh` — RTSP → JPEG → post to Pi.
+Кэш снимков: `/var/lib/greenhouse_cv/` (7–14 дней, rotate). Референс edge‑скрипт (не в repo):
+`edge_capture.sh` — RTSP → JPEG → post to Pi.
 
 ### 3.5. Сеть и IP
 
@@ -268,7 +301,8 @@ NTP для IoT — опционально точечное разрешение 
 | **Утро** | `07:00:00` | Совпадает с поливом; после ночного конденсата; растущий lux |
 | **Вечер** | `sun` **sunset − 45 min** (не фиксированные 18:00) | Адаптация к длине дня; летом позже, осенью раньше |
 
-**Пороги освещённости** (`sensor.osveshchennost_potolok`, BH1750 «потолок», [04 §2.3](04-esp32-and-cabinet.md)):
+**Пороги освещённости** (`sensor.osveshchennost_potolok`, BH1750 «потолок», [04
+§2.3](04-esp32-and-cabinet.md)):
 
 | Условие | Lux | Действие |
 |---------|-----|----------|
@@ -277,15 +311,18 @@ NTP для IoT — опционально точечное разрешение 
 | Темно | < **150** | **Skip** cloud; метка `skipped_dark`; см. §4.1.3 |
 | Полив (сравнение) | > 500 | Используется в `greenhouse_irrigation_by_soil_moisture` — CV утром может снимать при 300+ |
 
-Дополнительное условие утро: `sun` elevation > 5° (избегать глубоких сумерек при позднем/раннем поливе).
+Дополнительное условие утро: `sun` elevation > 5° (избегать глубоких сумерек при позднем/раннем
+поливе).
 
 ### 4.1.3. Недостаток света — skip или досветка
 
 **Без фиксированной LED‑вспышки в 18:00.** Логика:
 
 1. Если lux ≥ порога сессии → обычная съёмка.
-2. Если lux < порога **и** `sun` above_horizon → опционально **краткая досветка** (Phase 3): белая LED ~5 W, **2 min**, затем повторный замер lux; только если профиль не «ночной покой».
-3. Если lux < порога **и** sun below_horizon → **skip** (не будить растения искусственным светом ради CV).
+2. Если lux < порога **и** `sun` above_horizon → опционально **краткая досветка** (Phase 3): белая
+   LED ~5 W, **2 min**, затем повторный замер lux; только если профиль не «ночной покой».
+3. Если lux < порога **и** sun below_horizon → **skip** (не будить растения искусственным светом
+   ради CV).
 
 Пример automations: `homeassistant/automations/greenhouse_cv.yaml.example`.
 
@@ -334,9 +371,11 @@ NTP для IoT — опционально точечное разрешение 
 | ACL | Private; доступ сервисному аккаунту FM + HA static key |
 | Lifecycle | Standard → Cold через 90 дней (сезон); удаление через 365 дней (настраивается) |
 
-**Локальный каталог на Pi:** `/config/greenhouse_cv/inbox/` — вход от edge; `/config/greenhouse_cv/` — после analyze. HA Lovelace — последние снимки из inbox или signed S3 URL.
+**Локальный каталог на Pi:** `/config/greenhouse_cv/inbox/` — вход от edge; `/config/greenhouse_cv/`
+— после analyze. HA Lovelace — последние снимки из inbox или signed S3 URL.
 
-**Аутентификация:** static access key сервисного аккаунта с ролью `storage.editor`; ключи в **`homeassistant/secrets.yaml`** на Pi (не в git, **не на Radxa**).
+**Аутентификация:** static access key сервисного аккаунта с ролью `storage.editor`; ключи в
+**`homeassistant/secrets.yaml`** на Pi (не в git, **не на Radxa**).
 
 ### 5.2. Yandex AI Studio / Foundation Models (vision)
 
@@ -350,9 +389,12 @@ NTP для IoT — опционально точечное разрешение 
 | Формат vision | `messages[]` с `role: user`, `text` (prompt) + изображение **base64** в теле **или** ссылка на объект в Object Storage (`file.objectStorage.bucket` + `object`) |
 | Ответ | JSON в `result.alternatives[0].message.text` — парсить structured prompt |
 
-**Vision OCR** (отдельный API, не phytopathology): `POST https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText` — для документов/этикеток, **не** для мониторинга листвы. Для теплицы — **мультимодальный YandexGPT** с ag‑prompt.
+**Vision OCR** (отдельный API, не phytopathology): `POST
+https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText` — для документов/этикеток, **не** для
+мониторинга листвы. Для теплицы — **мультимодальный YandexGPT** с ag‑prompt.
 
-**SDK:** [yandex-cloud-ml-sdk](https://github.com/yandex-cloud/yandex-cloud-ml-sdk) (Python), `AIStudio(folder_id=..., auth=...)`.
+**SDK:** [yandex-cloud-ml-sdk](https://github.com/yandex-cloud/yandex-cloud-ml-sdk) (Python),
+`AIStudio(folder_id=..., auth=...)`.
 
 ### 5.3. Пример prompt (YandexGPT)
 
@@ -372,7 +414,9 @@ NTP для IoT — опционально точечное разрешение 
 
 ### 5.4. Тарификация (ориентир, ₽, 2025–2026)
 
-Цены Yandex Cloud — [Foundation Models pricing](https://yandex.cloud/ru/docs/foundation-models/pricing), [Object Storage pricing](https://yandex.cloud/ru/docs/storage/pricing). Billing в **рублях**, данные в **РФ**.
+Цены Yandex Cloud — [Foundation Models
+pricing](https://yandex.cloud/ru/docs/foundation-models/pricing), [Object Storage
+pricing](https://yandex.cloud/ru/docs/storage/pricing). Billing в **рублях**, данные в **РФ**.
 
 | Сервис | Расчёт для проекта (~120 img/мес) | Оценка ₽/мес |
 |--------|-----------------------------------|--------------|
@@ -382,9 +426,11 @@ NTP для IoT — опционально точечное разрешение 
 | PUT/GET запросы | < 500/мес | **0 ₽** (free tier) |
 | Исходящий трафик в internet | HA → YC upload ~50 MB | **~5–10 ₽** |
 
-**Итого сезон (5 мес):** порядка **300–1 500 ₽** — доминирует не inference, а время на калибровку prompt и разбор false positives.
+**Итого сезон (5 мес):** порядка **300–1 500 ₽** — доминирует не inference, а время на калибровку
+prompt и разбор false positives.
 
-**152‑ФЗ / residency:** primary copy в Object Storage `ru-central1`; inference Foundation Models в Yandex Cloud РФ; трансграничная передача **не используется** (в отличие от OpenAI US).
+**152‑ФЗ / residency:** primary copy в Object Storage `ru-central1`; inference Foundation Models в
+Yandex Cloud РФ; трансграничная передача **не используется** (в отличие от OpenAI US).
 
 ### 5.5. Отклонённые альтернативы
 
@@ -409,13 +455,26 @@ NTP для IoT — опционально точечное разрешение 
 
 **Практика:** CV **дополняет** датчики. Двойное подтверждение (утро + вечер) перед critical alert.
 
-**Честная оценка micronutrients vs disease:** модели PlantVillage и большинство HF‑репозиториев обучены на **крупных планах больных листьев** в лабораторных условиях. **Болезни** (мучнистая роса, фитофтора, septoria) на wide‑shot теплицы — **средняя** реалистичность; локальный MobileNet полезен как **pre-filter**, не как диагноз. **Дефицит N/P/K/Mg** и **micronutrients** — на Hugging Face **почти нет** готовых edge‑моделей с валидацией; единственный релевантный класс в [valla2345/bell-pepper-disease-classifier](https://huggingface.co/valla2345/bell-pepper-disease-classifier) — общий `Nutrient deficiency` без разбивки по элементам. Для микроэлементов надёжнее **YandexGPT multimodal** (Phase 2a) + RH/lux контекст, чем ONNX на edge. Fine‑tune на своих кадрах теплицы — Phase 3+.
+**Честная оценка micronutrients vs disease:** модели PlantVillage и большинство HF‑репозиториев
+обучены на **крупных планах больных листьев** в лабораторных условиях. **Болезни** (мучнистая роса,
+фитофтора, septoria) на wide‑shot теплицы — **средняя** реалистичность; локальный MobileNet полезен
+как **pre-filter**, не как диагноз. **Дефицит N/P/K/Mg** и **micronutrients** — на Hugging Face
+**почти нет** готовых edge‑моделей с валидацией; единственный релевантный класс в
+[valla2345/bell-pepper-disease-classifier][bell-pepper-disease-classifier] — общий
+`Nutrient deficiency` без разбивки по элементам. Для микроэлементов надёжнее **YandexGPT
+multimodal** (Phase 2a) + RH/lux контекст, чем ONNX на edge. Fine‑tune на своих кадрах теплицы —
+Phase 3+.
+
+[bell-pepper-disease-classifier]: https://huggingface.co/valla2345/bell-pepper-disease-classifier
 
 ---
 
 ## 6.5. Hugging Face — shortlist для edge (Phase 2b)
 
-Критерии отбора: hobby‑лицензия (MIT / Apache 2.0), пригодность для ONNX/CPU, релевантность культурам теплицы, наличие card/README. **Cucumber** в PlantVillage **нет** — ближайший прокси: **Squash Powdery mildew** (родственная мучнистая роса); для огурца — облачный YandexGPT или дообучение.
+Критерии отбора: hobby‑лицензия (MIT / Apache 2.0), пригодность для ONNX/CPU, релевантность
+культурам теплицы, наличие card/README. **Cucumber** в PlantVillage **нет** — ближайший прокси:
+**Squash Powdery mildew** (родственная мучнистая роса); для огурца — облачный YandexGPT или
+дообучение.
 
 ### Томат (10 классов PlantVillage + специализированные)
 
@@ -429,7 +488,10 @@ NTP для IoT — опционально точечное разрешение 
 | 6 | [Abuzaid01/plant-disease-classifier](https://huggingface.co/Abuzaid01/plant-disease-classifier) | EfficientNet-B2 | 224×224 | 14 (6 tomato + apple + corn) | Transformers | — | ~38 DL/mo |
 | 7 | [DrUkachi/ktt-crop-disease-classifier](https://huggingface.co/DrUkachi/ktt-crop-disease-classifier) | MobileNetV3-Small | 224×224 | 5 (не tomato — maize/bean) | **ONNX INT8 4.34 MB** ★ edge | MIT | — |
 
-**Рекомендация для edge (tomato):** экспорт [rarfileexe/Plant-Disease-Detector](https://huggingface.co/rarfileexe/Plant-Disease-Detector) или [DrUkachi](https://huggingface.co/DrUkachi/ktt-crop-disease-classifier) pipeline в ONNX INT8; фильтровать выход по префиксу `Tomato___`.
+**Рекомендация для edge (tomato):** экспорт
+[rarfileexe/Plant-Disease-Detector](https://huggingface.co/rarfileexe/Plant-Disease-Detector) или
+[DrUkachi](https://huggingface.co/DrUkachi/ktt-crop-disease-classifier) pipeline в ONNX INT8;
+фильтровать выход по префиксу `Tomato___`.
 
 ### Огурец / тыква (proxy — нет класса Cucumber в PlantVillage)
 
@@ -440,7 +502,8 @@ NTP для IoT — опционально точечное разрешение 
 | 3 | [wambugu71/crop_leaf_diseases_vit_onnx](https://huggingface.co/wambugu71/crop_leaf_diseases_vit_onnx) | ViT | Corn/potato/rice/wheat | **Не cucumber** — только если нет альтернативы | ONNX INT8 |
 | 4 | [JK-TK/PlantDiseaseDetection](https://huggingface.co/JK-TK/PlantDiseaseDetection) | YOLOv11x | 116 классов, field+lab | ONNX 113 MB — тяжело; detection bbox | ~14 DL/mo |
 
-**Для огурца:** Phase 2a YandexGPT primary; edge ONNX — только `powdery_mildew`/`downy_mildew` hints через squash proxy + низкий weight в alert logic.
+**Для огурца:** Phase 2a YandexGPT primary; edge ONNX — только `powdery_mildew`/`downy_mildew` hints
+через squash proxy + низкий weight в alert logic.
 
 ### Перец (баклажанный профиль — optional)
 
@@ -483,7 +546,8 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 # Post JPEG to Pi: scp snapshot.jpg pi@192.168.1.x:/config/greenhouse_cv/inbox/
 ```
 
-Модели без ONNX в репозитории: export через `optimum` / `tf2onnx` / `torch.onnx.export` на dev‑машине; quantize INT8 на Radxa или x86.
+Модели без ONNX в репозитории: export через `optimum` / `tf2onnx` / `torch.onnx.export` на
+dev‑машине; quantize INT8 на Radxa или x86.
 
 ---
 
@@ -508,8 +572,8 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 
 ### 7.3. Связь с профилем культуры
 
-- Metadata API включает `input_select.greenhouse_plant_profile`.
-- Помидор — **ниже** порог RH для mildew‑vent (согласовано с `greenhouse_vent_humidity_max`).
+- Metadata API включает `input_select.greenhouse_plant_profile`. Помидор — **ниже** порог RH для
+  mildew‑vent (согласовано с `greenhouse_vent_humidity_max`).
 
 ### 7.4. Алерты и связка с проветриванием / поливом
 
@@ -520,9 +584,11 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 | `diseased`, confidence > 0.75 | — | Notify + logbook; vent только при mildew + RH (выше) |
 | `uncertain` / `skipped_dark` | — | Без vent/irrigation |
 
-Примеры automations: `greenhouse_cv.yaml.example` (`greenhouse_cv_mildew_vent_boost`, `greenhouse_cv_water_stress_irrigation_hint`).
+Примеры automations: `greenhouse_cv.yaml.example` (`greenhouse_cv_mildew_vent_boost`,
+`greenhouse_cv_water_stress_irrigation_hint`).
 
-**Безопасность:** автоматический полив по CV **не включается** без явного решения (конфликт с «полив по RH» в 07:00); только уведомление‑hint.
+**Безопасность:** автоматический полив по CV **не включается** без явного решения (конфликт с «полив
+по RH» в 07:00); только уведомление‑hint.
 
 ---
 
@@ -554,28 +620,25 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 
 ### Phase 1 — Capture + edge → Pi (1–2 недели)
 
-- [ ] 2× PoE камер, монтаж П‑layout, IP .21/.22
-- [ ] **Radxa ZERO 3W** в щите **снаружи у входа**, IP `.13`, Wi‑Fi IoT-GH, **firewall: no WAN**
-- [ ] Edge service: RTSP snapshot утро / sunset−45m с lux‑gate (HA REST API)
-- [ ] Локальная передача JPEG на Pi `/config/greenhouse_cv/inbox/`; Lovelace «последние снимки»
+- [ ] 2× PoE камер, монтаж П‑layout, IP .21/.22 [ ] **Radxa ZERO 3W** в щите **снаружи у входа**, IP
+  `.13`, Wi‑Fi IoT-GH, **firewall: no WAN** [ ] Edge service: RTSP snapshot утро / sunset−45m с
+  lux‑gate (HA REST API) [ ] Локальная передача JPEG на Pi `/config/greenhouse_cv/inbox/`; Lovelace
+  «последние снимки»
 
 ### Phase 2a — YandexGPT analysis на Pi (2–4 недели)
 
-- [ ] `capture_and_analyze.sh` на **Pi** + service account в HA secrets
-- [ ] Template sensors + notify на HA после analyze
-- [ ] Журнал false positives
+- [ ] `capture_and_analyze.sh` на **Pi** + service account в HA secrets [ ] Template sensors +
+  notify на HA после analyze [ ] Журнал false positives
 
 ### Phase 2b — Local ONNX pre-filter на edge (опционально)
 
-- [ ] ONNX MobileNetV2 / DrUkachi INT8 на edge
-- [ ] Метка `prefilter_healthy` в metadata → Pi может skip cloud
-- [ ] Profile-aware class filter (`input_select.greenhouse_plant_profile`)
+- [ ] ONNX MobileNetV2 / DrUkachi INT8 на edge [ ] Метка `prefilter_healthy` в metadata → Pi может
+  skip cloud [ ] Profile-aware class filter (`input_select.greenhouse_plant_profile`)
 
 ### Phase 3 — Profile alerts + actuators (сезон)
 
-- [ ] Vent boost / irrigation hints (§7.4)
-- [ ] Двойное подтверждение mildew
-- [ ] Опционально LED pre‑flash при пограничном lux
+- [ ] Vent boost / irrigation hints (§7.4) [ ] Двойное подтверждение mildew [ ] Опционально LED
+  pre‑flash при пограничном lux
 
 ---
 
@@ -599,7 +662,8 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 
 ## 12. Принятые решения (архив)
 
-Ранее открытые вопросы закрыты решениями от 2026-06 — см. таблицу в начале документа и [03 §1.4.2](03-greenhouse-installation.md#142-п-образная-планировка-грядок-и-камеры-cv).
+Ранее открытые вопросы закрыты решениями от 2026-06 — см. таблицу в начале документа и [03
+§1.4.2](03-greenhouse-installation.md#142-п-образная-планировка-грядок-и-камеры-cv).
 
 ---
 
@@ -623,12 +687,16 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 | FM async | `POST .../foundationModels/v1/completionAsync` (дешевле 50 % async) |
 | IAM token | `POST https://iam.api.cloud.yandex.net/iam/v1/tokens` |
 
-**Env vars (скрипт на Pi):** `YC_FOLDER_ID`, `YC_API_KEY`, `YC_S3_BUCKET`, `YC_S3_ACCESS_KEY`, `YC_S3_SECRET_KEY`, `YC_S3_ENDPOINT` (default `https://storage.yandexcloud.net`). Задавать через `shell_command` / HA secrets — **не на Radxa**.
+**Env vars (скрипт на Pi):** `YC_FOLDER_ID`, `YC_API_KEY`, `YC_S3_BUCKET`, `YC_S3_ACCESS_KEY`,
+`YC_S3_SECRET_KEY`, `YC_S3_ENDPOINT` (default `https://storage.yandexcloud.net`). Задавать через
+`shell_command` / HA secrets — **не на Radxa**.
 
 ---
 
-*Документ подготовлен для проекта smart-greenhouse. Перед заказом камер проверьте PoE budget и покрытие кадра на объекте с П‑layout.*
+*Документ подготовлен для проекта smart-greenhouse. Перед заказом камер проверьте PoE budget и
+покрытие кадра на объекте с П‑layout.*
 
 ---
 
-← [04-esp32-and-cabinet](04-esp32-and-cabinet.md) | [Оглавление](smart-greenhouse-design.md) | [01-overview](01-overview.md) →
+← [04-esp32-and-cabinet](04-esp32-and-cabinet.md) | [Оглавление](smart-greenhouse-design.md) |
+[01-overview](01-overview.md) →
