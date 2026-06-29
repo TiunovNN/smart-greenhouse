@@ -1,7 +1,7 @@
 [project]
-name = "smart-greenhouse-scripts"
+name = "smart-greenhouse-bom-tools"
 version = "0.1.0"
-description = "Utility scripts for the smart-greenhouse repository."
+description = "BOM generation tools for the smart-greenhouse repository."
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "openpyxl",

@@ -1,0 +1,11 @@
+[project]
+name = "smart-greenhouse-validation-tools"
+version = "0.1.0"
+description = "Validation tools for the smart-greenhouse repository."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pyyaml",
+]
+
+[tool.uv]
+package = false

@@ -593,7 +593,7 @@ sess = ort.InferenceSession('plant_disease_int8.onnx', providers=['CPUExecutionP
 | **Итого CV hardware** | | | **~22 550** |
 | Yandex Cloud (сезон 5 мес) | — | см. §5.4 | **~300–1 500 ₽** |
 
-*См. также `scripts/generate_bom.py` (категория «Computer vision (optional)»).*
+*См. также `tools/bom/generate_bom.py` (категория «Computer vision (optional)»).*
 
 ---
 

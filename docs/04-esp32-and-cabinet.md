@@ -898,7 +898,7 @@ ap_fallback_password: "резервный-ap"
 | greenhouse-watering | `sensor.greenhouse_watering_bak_temperatura_vody`, `sensor.greenhouse_watering_poliv_rashod`, `sensor.greenhouse_watering_pochva_*_vlazhnost` (×6), `sensor.greenhouse_watering_pochva_*_napryazhenie` (×6), `sensor.greenhouse_watering_teplitsa_minimalnaya_vlazhnost_pochvy`, `sensor.greenhouse_watering_teplitsa_srednyaya_vlazhnost_pochvy`, `number.greenhouse_watering_pochva_*_kalib_sukho` / `_kalib_mokro` (×6), `binary_sensor.greenhouse_watering_bak_verkhniy_uroven`, `binary_sensor.greenhouse_watering_bak_sredniy_uroven`, `number.greenhouse_watering_bak_obem_mezhdu_urovnyami`, `number.greenhouse_watering_bak_koeffitsient_raskhodomera_napolneniya`, `sensor.greenhouse_watering_bak_impulsy_posledney_kalibrovki`, `switch.greenhouse_watering_klapan_poliva`, `switch.greenhouse_watering_klapan_napolneniya_baka`, `sensor.greenhouse_watering_poliv_rssi` |
 | greenhouse-climate | `sensor.teplitsa_vkhod_niz_temperatura`, `sensor.teplitsa_tsentr_naverkhu_temperatura`, `sensor.teplitsa_max_temperatura`, `sensor.teplitsa_srednyaya_vlazhnost`, `sensor.osveshchennost_potolok`, `cover.fortochka_1`, `cover.fortochka_2`, `text_sensor.teplitsa_zona_max_temperatury`, … |
 
-\* Точные `entity_id` зависят от версии HA; переименуйте в **Настройки → Устройства → Сущность → Имя**.
+\* Точные `entity_id` зависят от версии HA; переименуйте в **Настройки → Устройства → Сущность → Имя**. В ESPHome `name:` у сущностей содержит короткий ASCII‑префикс (`soil_l_near`, `temp_max`, `vent_window_1` и т.п.), чтобы ESPHome 2026.x не схлопывал русские friendly names в одинаковые ASCII slug при проверке конфигурации.
 
 ---
 
@@ -908,4 +908,3 @@ ap_fallback_password: "резервный-ap"
 ← [03-greenhouse-installation](03-greenhouse-installation.md) | [Оглавление](smart-greenhouse-design.md)
 
 ---
-

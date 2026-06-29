@@ -131,13 +131,13 @@ globals:
 
 sensor:
   - platform: wifi_signal
-    name: "Полив — RSSI"
+    name: "wifi_rssi — Полив — RSSI"
     id: wifi_rssi
     update_interval: 60s
 
   - platform: dallas_temp
     one_wire_id: bus_onewire
-    name: "Бак — температура воды"
+    name: "tank_water_temp — Бак — температура воды"
     id: tank_water_temp
     filters:
       - sliding_window_moving_average:
@@ -147,14 +147,14 @@ sensor:
   - platform: dallas_temp
     one_wire_id: bus_onewire
     address: 0x000000000000  # заменить на реальный ROM после первого скана
-    name: "Полив — температура воды"
+    name: "irrigation_water_temp — Полив — температура воды"
     id: irrigation_water_temp
 
   - platform: pulse_counter
     pin:
       number: GPIO13
       mode: INPUT_PULLUP
-    name: "Полив — расход"
+    name: "flow_irrigation — Полив — расход"
     id: flow_irrigation
     unit_of_measurement: "L/min"
     accuracy_decimals: 2
@@ -171,7 +171,7 @@ sensor:
     pin:
       number: GPIO14
       mode: INPUT_PULLUP
-    name: "Бак — расход наполнения"
+    name: "flow_tank_fill — Бак — расход наполнения"
     id: flow_tank_fill
     unit_of_measurement: "L/min"
     accuracy_decimals: 2
@@ -187,7 +187,7 @@ sensor:
     update_interval: 1s
 
   - platform: template
-    name: "Полив — объём за цикл"
+    name: "irrigation_cycle_volume — Полив — объём за цикл"
     id: irrigation_cycle_volume
     unit_of_measurement: "L"
     accuracy_decimals: 2
@@ -201,7 +201,7 @@ sensor:
     update_interval: 1s
 
   - platform: template
-    name: "Бак — объём наполнения за цикл"
+    name: "fill_cycle_volume — Бак — объём наполнения за цикл"
     id: fill_cycle_volume
     unit_of_measurement: "L"
     accuracy_decimals: 2
@@ -218,7 +218,7 @@ sensor:
     update_interval: 1s
 
   - platform: template
-    name: "Бак — импульсы последней калибровки"
+    name: "fill_last_calibration_pulse_count — Бак — импульсы последней калибровки"
     id: fill_last_calibration_pulse_count
     accuracy_decimals: 0
     state_class: measurement
@@ -237,9 +237,8 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва L у входа — напряжение"
+    name: "soil_l_near_voltage — Почва L у входа — напряжение"
     id: soil_l_near_voltage
-    object_id: pochva_l_u_vkhoda_napryazhenie
     unit_of_measurement: "V"
     accuracy_decimals: 3
     state_class: measurement
@@ -251,7 +250,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва L у входа — влажность"
+    name: "soil_l_near — Почва L у входа — влажность"
     id: soil_l_near
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -286,9 +285,8 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва L середина — напряжение"
+    name: "soil_l_mid_voltage — Почва L середина — напряжение"
     id: soil_l_mid_voltage
-    object_id: pochva_l_seredina_napryazhenie
     unit_of_measurement: "V"
     accuracy_decimals: 3
     state_class: measurement
@@ -300,7 +298,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва L середина — влажность"
+    name: "soil_l_mid — Почва L середина — влажность"
     id: soil_l_mid
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -335,9 +333,8 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва L излом П — напряжение"
+    name: "soil_l_far_voltage — Почва L излом П — напряжение"
     id: soil_l_far_voltage
-    object_id: pochva_l_izlom_p_napryazhenie
     unit_of_measurement: "V"
     accuracy_decimals: 3
     state_class: measurement
@@ -349,7 +346,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва L излом П — влажность"
+    name: "soil_l_far — Почва L излом П — влажность"
     id: soil_l_far
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -384,9 +381,8 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва R у входа — напряжение"
+    name: "soil_r_near_voltage — Почва R у входа — напряжение"
     id: soil_r_near_voltage
-    object_id: pochva_r_u_vkhoda_napryazhenie
     unit_of_measurement: "V"
     accuracy_decimals: 3
     state_class: measurement
@@ -398,7 +394,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва R у входа — влажность"
+    name: "soil_r_near — Почва R у входа — влажность"
     id: soil_r_near
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -433,9 +429,8 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва R середина — напряжение"
+    name: "soil_r_mid_voltage — Почва R середина — напряжение"
     id: soil_r_mid_voltage
-    object_id: pochva_r_seredina_napryazhenie
     unit_of_measurement: "V"
     accuracy_decimals: 3
     state_class: measurement
@@ -447,7 +442,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва R середина — влажность"
+    name: "soil_r_mid — Почва R середина — влажность"
     id: soil_r_mid
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -482,9 +477,8 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва R излом П — напряжение"
+    name: "soil_r_far_voltage — Почва R излом П — напряжение"
     id: soil_r_far_voltage
-    object_id: pochva_r_izlom_p_napryazhenie
     unit_of_measurement: "V"
     accuracy_decimals: 3
     state_class: measurement
@@ -496,7 +490,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Почва R излом П — влажность"
+    name: "soil_r_far — Почва R излом П — влажность"
     id: soil_r_far
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -523,7 +517,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Теплица — средняя влажность почвы"
+    name: "soil_moisture_avg — Теплица — средняя влажность почвы"
     id: soil_moisture_avg
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -545,7 +539,7 @@ sensor:
     update_interval: 60s
 
   - platform: template
-    name: "Теплица — минимальная влажность почвы"
+    name: "soil_moisture_min — Теплица — минимальная влажность почвы"
     id: soil_moisture_min
     unit_of_measurement: "%"
     accuracy_decimals: 0
@@ -590,7 +584,7 @@ binary_sensor:
       number: GPIO16
       mode: INPUT_PULLUP
       inverted: true
-    name: "Бак — верхний уровень"
+    name: "tank_level_upper — Бак — верхний уровень"
     id: tank_level_upper
     device_class: moisture
     filters:
@@ -624,7 +618,7 @@ binary_sensor:
       number: GPIO17
       mode: INPUT_PULLUP
       inverted: true
-    name: "Бак — средний уровень"
+    name: "tank_level_middle — Бак — средний уровень"
     id: tank_level_middle
     device_class: moisture
     filters:
@@ -638,35 +632,35 @@ binary_sensor:
           }
 
   - platform: template
-    name: "Полив — нет потока"
+    name: "irrigation_no_flow — Полив — нет потока"
     id: irrigation_no_flow
     device_class: problem
     lambda: |-
       return id(irrigation_no_flow_fault);
 
   - platform: template
-    name: "Бак — нет потока наполнения"
+    name: "fill_no_flow — Бак — нет потока наполнения"
     id: fill_no_flow
     device_class: problem
     lambda: |-
       return id(fill_no_flow_fault);
 
   - platform: template
-    name: "Полив — поток при закрытом клапане"
+    name: "irrigation_post_close_flow — Полив — поток при закрытом клапане"
     id: irrigation_post_close_flow
     device_class: problem
     lambda: |-
       return id(irrigation_post_close_fault);
 
   - platform: template
-    name: "Бак — поток при закрытом клапане"
+    name: "fill_post_close_flow — Бак — поток при закрытом клапане"
     id: fill_post_close_flow
     device_class: problem
     lambda: |-
       return id(fill_post_close_fault);
 
   - platform: template
-    name: "Полив — цель достигнута"
+    name: "irrigation_target_reached — Полив — цель достигнута"
     id: irrigation_target_reached
     lambda: |-
       if (!id(valve_irrigation).state) {
@@ -676,7 +670,7 @@ binary_sensor:
 
 number:
   - platform: template
-    name: "Полив — целевой объём"
+    name: "irrigation_target_volume — Полив — целевой объём"
     id: irrigation_target_volume
     optimistic: true
     restore_value: true
@@ -688,7 +682,7 @@ number:
     mode: box
 
   - platform: template
-    name: "Бак — объём между уровнями"
+    name: "fill_calibration_volume — Бак — объём между уровнями"
     id: fill_level_gap_volume
     optimistic: true
     restore_value: true
@@ -700,7 +694,7 @@ number:
     mode: box
 
   - platform: template
-    name: "Бак — коэффициент расходомера наполнения"
+    name: "fill_flow_multiplier — Бак — коэффициент расходомера наполнения"
     id: fill_flow_multiplier
     optimistic: true
     restore_value: true
@@ -712,9 +706,8 @@ number:
 
   # Per-probe soil calibration (V at 0% / 100%). HA script greenhouse_soil_moisture_calibrate writes these.
   - platform: template
-    name: "Почва L у входа — калиб. сухо"
+    name: "soil_l_near_cal_dry — Почва L у входа — калиб. сухо"
     id: soil_l_near_cal_dry
-    object_id: pochva_l_u_vkhoda_kalib_sukho
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_dry_v}
@@ -724,9 +717,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва L у входа — калиб. мокро"
+    name: "soil_l_near_cal_wet — Почва L у входа — калиб. мокро"
     id: soil_l_near_cal_wet
-    object_id: pochva_l_u_vkhoda_kalib_mokro
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_wet_v}
@@ -736,9 +728,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва L середина — калиб. сухо"
+    name: "soil_l_mid_cal_dry — Почва L середина — калиб. сухо"
     id: soil_l_mid_cal_dry
-    object_id: pochva_l_seredina_kalib_sukho
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_dry_v}
@@ -748,9 +739,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва L середина — калиб. мокро"
+    name: "soil_l_mid_cal_wet — Почва L середина — калиб. мокро"
     id: soil_l_mid_cal_wet
-    object_id: pochva_l_seredina_kalib_mokro
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_wet_v}
@@ -760,9 +750,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва L излом П — калиб. сухо"
+    name: "soil_l_far_cal_dry — Почва L излом П — калиб. сухо"
     id: soil_l_far_cal_dry
-    object_id: pochva_l_izlom_p_kalib_sukho
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_dry_v}
@@ -772,9 +761,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва L излом П — калиб. мокро"
+    name: "soil_l_far_cal_wet — Почва L излом П — калиб. мокро"
     id: soil_l_far_cal_wet
-    object_id: pochva_l_izlom_p_kalib_mokro
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_wet_v}
@@ -784,9 +772,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва R у входа — калиб. сухо"
+    name: "soil_r_near_cal_dry — Почва R у входа — калиб. сухо"
     id: soil_r_near_cal_dry
-    object_id: pochva_r_u_vkhoda_kalib_sukho
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_dry_v}
@@ -796,9 +783,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва R у входа — калиб. мокро"
+    name: "soil_r_near_cal_wet — Почва R у входа — калиб. мокро"
     id: soil_r_near_cal_wet
-    object_id: pochva_r_u_vkhoda_kalib_mokro
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_wet_v}
@@ -808,9 +794,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва R середина — калиб. сухо"
+    name: "soil_r_mid_cal_dry — Почва R середина — калиб. сухо"
     id: soil_r_mid_cal_dry
-    object_id: pochva_r_seredina_kalib_sukho
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_dry_v}
@@ -820,9 +805,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва R середина — калиб. мокро"
+    name: "soil_r_mid_cal_wet — Почва R середина — калиб. мокро"
     id: soil_r_mid_cal_wet
-    object_id: pochva_r_seredina_kalib_mokro
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_wet_v}
@@ -832,9 +816,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва R излом П — калиб. сухо"
+    name: "soil_r_far_cal_dry — Почва R излом П — калиб. сухо"
     id: soil_r_far_cal_dry
-    object_id: pochva_r_izlom_p_kalib_sukho
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_dry_v}
@@ -844,9 +827,8 @@ number:
     unit_of_measurement: "V"
     mode: box
   - platform: template
-    name: "Почва R излом П — калиб. мокро"
+    name: "soil_r_far_cal_wet — Почва R излом П — калиб. мокро"
     id: soil_r_far_cal_wet
-    object_id: pochva_r_izlom_p_kalib_mokro
     optimistic: true
     restore_value: true
     initial_value: ${soil_cal_wet_v}
@@ -859,7 +841,7 @@ number:
 switch:
   - platform: gpio
     pin: GPIO26
-    name: "Клапан полива"
+    name: "valve_irrigation — Клапан полива"
     id: valve_irrigation
     restore_mode: ALWAYS_OFF
     icon: "mdi:sprinkler"
@@ -883,7 +865,7 @@ switch:
 
   - platform: gpio
     pin: GPIO27
-    name: "Клапан наполнения бака"
+    name: "valve_tank_fill — Клапан наполнения бака"
     id: valve_tank_fill
     restore_mode: ALWAYS_OFF
     icon: "mdi:water-pump"

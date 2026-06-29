@@ -34,6 +34,7 @@ smart-greenhouse/
 │   └── plant_profiles.yaml          # Profile default values (reference; applied by automation)
 ├── .cursor/
 │   └── skills/
+│       ├── esphome/                 # ESPHome firmware skill (from aurora-smart-home, adapted)
 │       └── home-assistant/          # HA YAML skill (from aurora-smart-home, adapted)
 ├── AGENTS.md                        # This file
 ├── Task.md                          # Task tracking
@@ -115,9 +116,10 @@ Use **modern HA syntax** (2024.8+): plural `triggers:` / `conditions:` / `action
 
 | Skill | Path | Use when |
 |-------|------|----------|
+| ESPHome firmware | `.cursor/skills/esphome/` | Writing or reviewing `esphome/` device firmware, GPIO, sensors, actuators, and calibration |
 | Home Assistant YAML | `.cursor/skills/home-assistant/` | Writing or reviewing `homeassistant/` automations, helpers, templates |
 
-Adapted from [aurora-smart-home/home-assistant](https://github.com/tonylofgren/aurora-smart-home/tree/main/home-assistant).
+Adapted from [aurora-smart-home/esphome](https://github.com/tonylofgren/aurora-smart-home/tree/main/esphome) and [aurora-smart-home/home-assistant](https://github.com/tonylofgren/aurora-smart-home/tree/main/home-assistant).
 
 ## Language
 

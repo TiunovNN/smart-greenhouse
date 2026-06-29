@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_XLSX = REPO_ROOT / "docs" / "smart-greenhouse-bom.xlsx"
 OUTPUT_CSV = REPO_ROOT / "docs" / "smart-greenhouse-bom.csv"
 

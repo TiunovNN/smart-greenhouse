@@ -8,6 +8,22 @@ Contributor and agent guide: [AGENTS.md](AGENTS.md).
 
 ## Quick start
 
+## Validation
+
+The repository has lightweight checks for YAML shape, ESPHome compilation, profile drift, and accidental secrets:
+
+```bash
+cd tools/validation
+uv run validate_greenhouse_config.py
+cd ../..
+yamllint .
+cd esphome
+esphome config greenhouse-watering.yaml
+esphome config greenhouse-climate.yaml
+```
+
+GitHub Actions runs the same checks on pushes and pull requests. CI uses `ibiqlik/action-yamllint`, the official ESPHome container image, and `gitleaks/gitleaks-action`. The ESPHome job copies `secrets.yaml.example`, which contains dummy credentials, so real secrets are never needed.
+
 ### 1. ESPHome secrets
 
 ```bash
@@ -53,7 +69,8 @@ Python scripts use `uv` with the pinned version from `.python-version`:
 
 ```bash
 uv python install
-uv run scripts/generate_bom.py
+cd tools/bom
+uv run generate_bom.py
 ```
 
 ## Repository structure
@@ -71,6 +88,8 @@ uv run scripts/generate_bom.py
 | `homeassistant/automations/greenhouse.yaml` | Irrigation, tank fill, ventilation automations |
 | `homeassistant/automations/greenhouse_cv.yaml.example` | Optional CV orchestration on Pi (not active by default) |
 | `scripts/capture_and_analyze.sh` | Pi-side Yandex Object Storage + AI Studio stub |
+| `tools/bom/generate_bom.py` | Generate `docs/smart-greenhouse-bom.*` from the curated BOM table |
+| `tools/validation/validate_greenhouse_config.py` | Cross-file checks for profile drift, HA syntax, and tracked secrets |
 | `docs/05-computer-vision.md` | Optional cameras, edge SBC, Pi cloud CV design |
 | `docs/smart-greenhouse-design.md` | Design doc index |
 

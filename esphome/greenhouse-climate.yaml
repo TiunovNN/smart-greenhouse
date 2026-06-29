@@ -92,7 +92,7 @@ i2c:
 
 sensor:
   - platform: wifi_signal
-    name: "Климат — RSSI"
+    name: "wifi_rssi — Климат — RSSI"
     id: wifi_rssi
     update_interval: 60s
 
@@ -102,10 +102,10 @@ sensor:
     address: 0x44
     update_interval: 30s
     temperature:
-      name: "Теплица центр наверху — температура"
+      name: "temp_center_top — Теплица центр наверху — температура"
       id: temp_center_top
     humidity:
-      name: "Теплица центр наверху — влажность"
+      name: "hum_center_top — Теплица центр наверху — влажность"
       id: hum_center_top
 
   - platform: sht3xd
@@ -113,10 +113,10 @@ sensor:
     address: 0x45
     update_interval: 30s
     temperature:
-      name: "Теплица вход низ — температура"
+      name: "temp_entrance_low — Теплица вход низ — температура"
       id: temp_entrance_low
     humidity:
-      name: "Теплица вход низ — влажность"
+      name: "hum_entrance_low — Теплица вход низ — влажность"
       id: hum_entrance_low
 
   - platform: sht3xd
@@ -124,28 +124,28 @@ sensor:
     address: 0x44
     update_interval: 30s
     temperature:
-      name: "Теплица противоположная сторона — температура"
+      name: "temp_opposite — Теплица противоположная сторона — температура"
       id: temp_opposite
     humidity:
-      name: "Теплица противоположная сторона — влажность"
+      name: "hum_opposite — Теплица противоположная сторона — влажность"
       id: hum_opposite
 
   - platform: bh1750
     i2c_id: bus_main
     address: 0x23
-    name: "Освещённость потолок"
+    name: "lux_ceiling — Освещённость потолок"
     id: lux_ceiling
     update_interval: 60s
 
   - platform: bh1750
     i2c_id: bus_secondary
     address: 0x5C
-    name: "Освещённость растения"
+    name: "lux_plants — Освещённость растения"
     id: lux_plants
     update_interval: 60s
 
   - platform: template
-    name: "Теплица — средняя температура"
+    name: "temp_avg — Теплица — средняя температура"
     id: temp_avg
     unit_of_measurement: "°C"
     device_class: temperature
@@ -160,7 +160,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — средняя влажность"
+    name: "hum_avg — Теплица — средняя влажность"
     id: hum_avg
     unit_of_measurement: "%"
     device_class: humidity
@@ -175,7 +175,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — max температура"
+    name: "temp_max — Теплица — max температура"
     id: temp_max
     unit_of_measurement: "°C"
     device_class: temperature
@@ -190,7 +190,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — min температура"
+    name: "temp_min — Теплица — min температура"
     id: temp_min
     unit_of_measurement: "°C"
     device_class: temperature
@@ -205,7 +205,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — разброс температуры"
+    name: "temp_delta — Теплица — разброс температуры"
     id: temp_delta
     unit_of_measurement: "°C"
     device_class: temperature
@@ -223,7 +223,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — max влажность"
+    name: "hum_max — Теплица — max влажность"
     id: hum_max
     unit_of_measurement: "%"
     device_class: humidity
@@ -238,7 +238,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — min влажность"
+    name: "hum_min — Теплица — min влажность"
     id: hum_min
     unit_of_measurement: "%"
     device_class: humidity
@@ -253,7 +253,7 @@ sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — разброс влажности"
+    name: "hum_delta — Теплица — разброс влажности"
     id: hum_delta
     unit_of_measurement: "%"
     device_class: humidity
@@ -272,7 +272,7 @@ sensor:
 
 text_sensor:
   - platform: template
-    name: "Теплица — зона max температуры"
+    name: "temp_max_zone — Теплица — зона max температуры"
     id: temp_hot_spot
     icon: "mdi:thermometer-high"
     lambda: |-
@@ -291,7 +291,7 @@ text_sensor:
     update_interval: 30s
 
   - platform: template
-    name: "Теплица — зона min температуры"
+    name: "temp_min_zone — Теплица — зона min температуры"
     id: temp_cold_spot
     icon: "mdi:thermometer-low"
     lambda: |-
@@ -316,7 +316,7 @@ binary_sensor:
       number: GPIO4
       mode: INPUT_PULLUP
       inverted: true
-    name: "Форточка 1 — закрыта (концевик)"
+    name: "limit_w1_closed — Форточка 1 — закрыта (концевик)"
     id: limit_w1_closed
 
   - platform: gpio
@@ -324,7 +324,7 @@ binary_sensor:
       number: GPIO5
       mode: INPUT_PULLUP
       inverted: true
-    name: "Форточка 1 — открыта (концевик)"
+    name: "limit_w1_open — Форточка 1 — открыта (концевик)"
     id: limit_w1_open
 
   - platform: gpio
@@ -332,7 +332,7 @@ binary_sensor:
       number: GPIO23
       mode: INPUT_PULLUP
       inverted: true
-    name: "Форточка 2 — закрыта (концевик)"
+    name: "limit_w2_closed — Форточка 2 — закрыта (концевик)"
     id: limit_w2_closed
 
   - platform: gpio
@@ -340,18 +340,18 @@ binary_sensor:
       number: GPIO25
       mode: INPUT_PULLUP
       inverted: true
-    name: "Форточка 2 — открыта (концевик)"
+    name: "limit_w2_open — Форточка 2 — открыта (концевик)"
     id: limit_w2_open
 
   - platform: template
-    name: "Форточка 1 — ошибка положения"
+    name: "vent_1_position_fault — Форточка 1 — ошибка положения"
     id: vent_1_position_fault
     device_class: problem
     lambda: |-
       return id(vent_1_move_fault) || id(vent_1_idle_fault);
 
   - platform: template
-    name: "Форточка 2 — ошибка положения"
+    name: "vent_2_position_fault — Форточка 2 — ошибка положения"
     id: vent_2_position_fault
     device_class: problem
     lambda: |-
@@ -359,6 +359,7 @@ binary_sensor:
 
 pca9685:
   - id: pca9685_hub
+    i2c_id: bus_main
     address: 0x40
     frequency: 50 Hz
 
@@ -379,7 +380,7 @@ output:
 
 number:
   - platform: template
-    name: "Окно 1 — угол"
+    name: "window_1_angle — Окно 1 — угол"
     id: window_1_angle
     min_value: 0
     max_value: 90
@@ -392,7 +393,7 @@ number:
           level: !lambda 'return x / 90.0;'
 
   - platform: template
-    name: "Окно 2 — угол"
+    name: "window_2_angle — Окно 2 — угол"
     id: window_2_angle
     min_value: 0
     max_value: 90
@@ -407,15 +408,13 @@ number:
 servo:
   - id: servo_window_1
     output: pwm_window_1
-    auto_detach: false
 
   - id: servo_window_2
     output: pwm_window_2
-    auto_detach: false
 
 cover:
   - platform: template
-    name: "Форточка 1"
+    name: "vent_window_1 — Форточка 1"
     id: vent_window_1
     has_position: true
     optimistic: true
@@ -435,9 +434,9 @@ cover:
       - number.set:
           id: window_1_angle
           value: 0
-    set_position_action:
+    position_action:
       - lambda: |-
-          const float angle = x * 90.0f;
+          const float angle = pos * 90.0f;
           if (angle <= 5.0f) {
             id(vent_1_move_started_at) = millis();
             id(vent_1_move_target) = 0;
@@ -453,10 +452,10 @@ cover:
           }
       - number.set:
           id: window_1_angle
-          value: !lambda 'return x * 90;'
+          value: !lambda 'return pos * 90;'
 
   - platform: template
-    name: "Форточка 2"
+    name: "vent_window_2 — Форточка 2"
     id: vent_window_2
     has_position: true
     optimistic: true
@@ -476,9 +475,9 @@ cover:
       - number.set:
           id: window_2_angle
           value: 0
-    set_position_action:
+    position_action:
       - lambda: |-
-          const float angle = x * 90.0f;
+          const float angle = pos * 90.0f;
           if (angle <= 5.0f) {
             id(vent_2_move_started_at) = millis();
             id(vent_2_move_target) = 0;
@@ -494,7 +493,7 @@ cover:
           }
       - number.set:
           id: window_2_angle
-          value: !lambda 'return x * 90;'
+          value: !lambda 'return pos * 90;'
 
 interval:
   - interval: 1s
