@@ -137,4 +137,5 @@ Adapted from [aurora-smart-home/esphome](https://github.com/tonylofgren/aurora-s
 1. Read [docs/smart-greenhouse-design.md](docs/smart-greenhouse-design.md) (index) and the relevant split doc for context.
 2. Keep ESPHome YAML aligned with [04-esp32-and-cabinet.md](docs/04-esp32-and-cabinet.md) §4.2 and §4.3 unless hardware changed.
 3. Update HA automations when entity IDs or logic change.
-4. Test on device or with `esphome config <file>.yaml` before suggesting deploy.
+4. Wrap prose in all Markdown files to a maximum line length of 100 characters; Markdown tables are exempt.
+5. Test on device or with `esphome config <file>.yaml` before suggesting deploy.

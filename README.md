@@ -78,7 +78,7 @@ uv run generate_bom.py
 | Path | Purpose |
 |------|---------|
 | `esphome/greenhouse-watering.yaml` | Valves, flow meters, tank level, DS18B20, soil moisture (ADS1115 ×2) |
-| `esphome/greenhouse-climate.yaml` | SHT3x, BH1750, PCA9685 servos, vent covers |
+| `esphome/greenhouse-climate.yaml` | SHT3x, BH1750, current PCA9685/MG996R vent cover implementation |
 | `homeassistant/input_boolean.yaml` | Season gate `greenhouse_season_active` |
 | `homeassistant/input_select.yaml` | Plant profile selector |
 | `homeassistant/input_number.yaml` | Profile setpoints (irrigation, vent) |
